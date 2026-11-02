@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <title>Utilisateurs - Stock Peinture</title>
+</head>
+<body>
+    <header>
+        <h1>Utilisateurs</h1>
+        <nav>
+            <a href="/admin">Inventaire</a> |
+            <a href="/admin/historique">Historique</a>
+        </nav>
+        <button type="button" id="deconnexion">Déconnexion</button>
+    </header>
+
+    <main>
+        <section id="section-creation">
+            <h2>Créer un compte</h2>
+            <form id="form-creation" class="form-grille">
+                <label for="u-nom">Nom d'utilisateur
+                    <input type="text" id="u-nom" minlength="3" maxlength="50" required
+                           autocomplete="off">
+                </label>
+                <label for="u-mdp">Mot de passe (12 caractères minimum)
+                    <input type="password" id="u-mdp" minlength="12" required
+                           autocomplete="new-password">
+                </label>
+                <label for="u-role">Rôle
+                    <select id="u-role">
+                        <option value="utilisateur">Utilisateur (scan)</option>
+                        <option value="admin">Administrateur</option>
+                    </select>
+                </label>
+                <button type="submit">Créer</button>
+            </form>
+        </section>
+
+        <section id="section-mdp" hidden>
+            <h2 id="titre-mdp"></h2>
+            <form id="form-mdp" class="form-grille">
+                <label for="m-mdp">Nouveau mot de passe (12 caractères minimum)
+                    <input type="password" id="m-mdp" minlength="12" required
+                           autocomplete="new-password">
+                </label>
+                <div class="actions">
+                    <button type="submit">Enregistrer</button>
+                    <button type="button" id="m-annuler">Annuler</button>
+                </div>
+            </form>
+        </section>
+
+        <p id="message" role="alert"></p>
+
+        <section id="section-liste">
+            <h2>Comptes</h2>
+            <div class="tableau-conteneur">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Nom</th>
+                            <th>Rôle</th>
+                            <th>Statut</th>
+                            <th>Mouvements</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corps"></tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/utilisateurs.js" defer></script>
+</body>
+</html>

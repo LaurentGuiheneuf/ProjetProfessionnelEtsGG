@@ -40,4 +40,9 @@ if (!colonnes.includes('correctif')) {
 db.exec('CREATE INDEX IF NOT EXISTS idx_mouvement_code ON mouvement(code_barre)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_mouvement_date ON mouvement(date)');
 
+const colonnesUtilisateur = db.prepare('PRAGMA table_info(utilisateur)').all().map((c) => c.name);
+if (!colonnesUtilisateur.includes('actif')) {
+  db.exec('ALTER TABLE utilisateur ADD COLUMN actif INTEGER NOT NULL DEFAULT 1');
+}
+
 module.exports = db;

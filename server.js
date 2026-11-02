@@ -44,6 +44,20 @@ app.use(session({
   },
 }));
 
+// --- Resynchronisation de la session avec la base (rôle, statut) ---
+const SQL_UTILISATEUR = db.prepare('SELECT id, role, actif FROM utilisateur WHERE id = ?');
+
+app.use((req, res, next) => {
+  if (!req.session.user) return next();
+  const u = SQL_UTILISATEUR.get(req.session.user.id);
+  if (!u || !u.actif) {
+    delete req.session.user; // compte supprimé ou désactivé : déconnexion
+    return next();
+  }
+  req.session.user.role = u.role; // changement de rôle appliqué immédiatement
+  next();
+});
+
 // --- Middlewares d'accès ---
 const exigerConnexion = (req, res, next) =>
   req.session.user ? next() : res.status(401).json({ erreur: 'Non connecté' });
@@ -62,7 +76,7 @@ app.post('/api/login', limiteurConnexion, async (req, res) => {
     return res.status(400).json({ erreur: 'Champs manquants' });
 
   const u = db.prepare('SELECT * FROM utilisateur WHERE nom = ?').get(utilisateur);
-  const ok = u && await bcrypt.compare(password, u.mot_de_passe_hache);
+  const ok = u && u.actif === 1 && await bcrypt.compare(password, u.mot_de_passe_hache);
   if (!ok) return res.status(401).json({ erreur: 'Identifiants invalides' });
 
   req.session.regenerate((err) => {
@@ -300,6 +314,88 @@ app.post('/api/admin/mouvements/correction', exigerAdmin, (req, res) => {
   }
 });
 
+// --- Admin : gestion des utilisateurs ---
+const ROLES = ['utilisateur', 'admin'];
+const FORMAT_NOM = /^[\p{L}\p{N}._-]{3,50}$/u;
+
+function motDePasseValide(mdp) {
+  return typeof mdp === 'string' && mdp.length >= 12 && Buffer.byteLength(mdp) <= 72;
+}
+const ERREUR_MDP = 'Mot de passe : 12 caractères minimum, 72 octets maximum';
+
+app.get('/api/admin/utilisateurs', exigerAdmin, (req, res) => {
+  const lignes = db.prepare(`
+    SELECT u.id, u.nom, u.role, u.actif,
+           (SELECT COUNT(*) FROM mouvement m WHERE m.utilisateur_id = u.id) AS mouvements
+    FROM utilisateur u
+    ORDER BY u.nom COLLATE NOCASE
+  `).all();
+  res.json(lignes.map((u) => ({ ...u, soi: u.id === req.session.user.id })));
+});
+
+app.post('/api/admin/utilisateurs', exigerAdmin, async (req, res) => {
+  const nom = typeof req.body.nom === 'string' ? req.body.nom.trim() : '';
+  const { password, role } = req.body;
+
+  if (!FORMAT_NOM.test(nom))
+    return res.status(400).json({ erreur: 'Nom : 3 à 50 caractères (lettres, chiffres, . _ -)' });
+  if (!ROLES.includes(role))
+    return res.status(400).json({ erreur: 'Rôle invalide' });
+  if (!motDePasseValide(password))
+    return res.status(400).json({ erreur: ERREUR_MDP });
+
+  if (db.prepare('SELECT 1 FROM utilisateur WHERE nom = ? COLLATE NOCASE').get(nom))
+    return res.status(409).json({ erreur: 'Ce nom existe déjà' });
+
+  try {
+    const hache = await bcrypt.hash(password, 12);
+    db.prepare('INSERT INTO utilisateur (nom, mot_de_passe_hache, role) VALUES (?, ?, ?)')
+      .run(nom, hache, role);
+    res.status(201).json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
+app.patch('/api/admin/utilisateurs/:id', exigerAdmin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ erreur: 'Identifiant invalide' });
+  if (id === req.session.user.id)
+    return res.status(409).json({ erreur: 'Tu ne peux pas modifier ton propre rôle ou statut' });
+
+  const u = db.prepare('SELECT id FROM utilisateur WHERE id = ?').get(id);
+  if (!u) return res.status(404).json({ erreur: 'Utilisateur inconnu' });
+
+  const { role, actif } = req.body;
+  if (role !== undefined) {
+    if (!ROLES.includes(role)) return res.status(400).json({ erreur: 'Rôle invalide' });
+    db.prepare('UPDATE utilisateur SET role = ? WHERE id = ?').run(role, id);
+  }
+  if (actif !== undefined) {
+    if (typeof actif !== 'boolean') return res.status(400).json({ erreur: 'Statut invalide' });
+    db.prepare('UPDATE utilisateur SET actif = ? WHERE id = ?').run(actif ? 1 : 0, id);
+  }
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/utilisateurs/:id/mot-de-passe', exigerAdmin, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return res.status(400).json({ erreur: 'Identifiant invalide' });
+  if (!motDePasseValide(req.body.password))
+    return res.status(400).json({ erreur: ERREUR_MDP });
+
+  try {
+    const hache = await bcrypt.hash(req.body.password, 12);
+    const r = db.prepare('UPDATE utilisateur SET mot_de_passe_hache = ? WHERE id = ?').run(hache, id);
+    if (r.changes === 0) return res.status(404).json({ erreur: 'Utilisateur inconnu' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
 // --- Pages protégées ---
 const pageAdmin = (fichier) => (req, res) => {
   if (req.session.user?.role !== 'admin') return res.redirect('/');
@@ -308,6 +404,7 @@ const pageAdmin = (fichier) => (req, res) => {
 
 app.get('/admin', pageAdmin('admin.html'));
 app.get('/admin/historique', pageAdmin('historique.html'));
+app.get('/admin/utilisateurs', pageAdmin('utilisateurs.html'));
 
 app.get('/scan.html', (req, res, next) => {
   if (!req.session.user) return res.redirect('/');
