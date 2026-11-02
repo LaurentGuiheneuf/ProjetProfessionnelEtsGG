@@ -3,42 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="../public/assets/css/style.css">
-    <title>Inventaire – Stock Peinture</title>
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <title>Inventaire-Stock Peinture</title>
 </head>
 <body>
     <header>
         <h1>Inventaire</h1>
+        <nav><a href="/admin/historique">Historique des mouvements</a></nav>
         <button type="button" id="deconnexion">Déconnexion</button>
     </header>
 
     <main>
-        <form id="filtres">
-            <label>Nom <input type="search" data-filtre="nom"></label>
-            <label>Couleur <input type="search" data-filtre="couleur"></label>
-            <label>Finition <input type="search" data-filtre="finition"></label>
-            <label>Fabricant <input type="search" data-filtre="fabricant"></label>
-            <button type="reset" id="raz">Réinitialiser</button>
-        </form>
+        <section id="section-article">
+            <h2 id="titre-form">Ajouter un article</h2>
+            <form id="form-article">
+                <label for="a-code">Code-barre
+                    <input type="text" id="a-code" name="code_barre" inputmode="numeric"
+                           maxlength="13" required autocomplete="off">
+                </label>
+                <label for="a-nom">Nom
+                    <input type="text" id="a-nom" name="nom" maxlength="100" required>
+                </label>
+                <label for="a-couleur">Couleur
+                    <input type="text" id="a-couleur" name="couleur" maxlength="100" required>
+                </label>
+                <label for="a-finition">Finition
+                    <input type="text" id="a-finition" name="finition" maxlength="100" required>
+                </label>
+                <label for="a-fabricant">Fabricant
+                    <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required>
+                </label>
+                <label for="a-stock" id="label-stock">Stock initial
+                    <input type="number" id="a-stock" name="stock_initial" min="0" step="1" value="0">
+                </label>
+                <div class="actions">
+                    <button type="submit" id="btn-enregistrer">Ajouter</button>
+                    <button type="button" id="btn-annuler" hidden>Annuler la modification</button>
+                </div>
+            </form>
+        </section>
 
-        <div class="tableau-conteneur">
-            <table>
-                <thead>
-                    <tr>
-                        <th aria-sort="ascending"><button type="button" data-tri="nom">Nom</button></th>
-                        <th aria-sort="none"><button type="button" data-tri="couleur">Couleur</button></th>
-                        <th aria-sort="none"><button type="button" data-tri="finition">Finition</button></th>
-                        <th aria-sort="none"><button type="button" data-tri="fabricant">Fabricant</button></th>
-                        <th>Code-barre</th>
-                        <th>Quantité</th>
-                    </tr>
-                </thead>
-                <tbody id="corps"></tbody>
-            </table>
-        </div>
-        <p id="compteur" role="status"></p>
+        <p id="message" role="alert"></p>
+
+        <section id="section-inventaire">
+            <h2>Stock</h2>
+            <form id="filtres">
+                <label>Nom <input type="search" data-filtre="nom"></label>
+                <label>Couleur <input type="search" data-filtre="couleur"></label>
+                <label>Finition <input type="search" data-filtre="finition"></label>
+                <label>Fabricant <input type="search" data-filtre="fabricant"></label>
+                <button type="reset" id="raz">Réinitialiser</button>
+            </form>
+
+            <div class="tableau-conteneur">
+                <table>
+                    <thead>
+                        <tr>
+                            <th aria-sort="ascending"><button type="button" data-tri="nom">Nom</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="couleur">Couleur</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="finition">Finition</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="fabricant">Fabricant</button></th>
+                            <th>Code-barre</th>
+                            <th aria-sort="none"><button type="button" data-tri="quantite">Quantité</button></th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corps"></tbody>
+                </table>
+            </div>
+            <p id="compteur" role="status"></p>
+        </section>
     </main>
 
-    <script src="../public/js/admin.js" defer></script>
+    <script src="/js/admin.js" defer></script>
 </body>
 </html>

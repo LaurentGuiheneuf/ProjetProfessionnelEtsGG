@@ -1,7 +1,104 @@
+const $ = (id) => document.getElementById(id);
 const etat = { tri: 'nom', ordre: 'asc' };
-const corps = document.getElementById('corps');
 const filtres = document.querySelectorAll('[data-filtre]');
 let minuteur;
+let codeEnEdition = null; // null = mode création
+
+function afficherMessage(texte, erreur = false) {
+  const m = $('message');
+  m.textContent = texte;
+  m.className = erreur ? 'erreur' : 'succes';
+}
+
+async function api(url, options) {
+  const rep = await fetch(url, options);
+  if (rep.status === 401 || rep.status === 403) {
+    window.location.href = '/';
+    throw new Error('Accès refusé');
+  }
+  const donnees = await rep.json().catch(() => ({}));
+  if (!rep.ok) throw new Error(donnees.erreur || 'Erreur serveur');
+  return donnees;
+}
+
+// --- Formulaire : modes création / modification ---
+function modeCreation() {
+  codeEnEdition = null;
+  $('form-article').reset();
+  $('a-code').readOnly = false;
+  $('a-stock').disabled = false;
+  $('label-stock').hidden = false;
+  $('titre-form').textContent = 'Ajouter un article';
+  $('btn-enregistrer').textContent = 'Ajouter';
+  $('btn-annuler').hidden = true;
+}
+
+function modeEdition(a) {
+  codeEnEdition = a.code_barre;
+  $('a-code').value = a.code_barre;
+  $('a-code').readOnly = true;
+  $('a-nom').value = a.nom;
+  $('a-couleur').value = a.couleur;
+  $('a-finition').value = a.finition;
+  $('a-fabricant').value = a.fabricant;
+  $('a-stock').disabled = true;
+  $('label-stock').hidden = true;
+  $('titre-form').textContent = 'Modifier l\u2019article';
+  $('btn-enregistrer').textContent = 'Enregistrer';
+  $('btn-annuler').hidden = false;
+  $('section-article').scrollIntoView({ behavior: 'smooth' });
+}
+
+$('form-article').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const donnees = Object.fromEntries(new FormData(e.target));
+  const enregistrement = codeEnEdition
+    ? api('/api/admin/articles/' + encodeURIComponent(codeEnEdition), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(donnees),
+      })
+    : api('/api/admin/articles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(donnees),
+      });
+
+  try {
+    await enregistrement;
+    afficherMessage(codeEnEdition ? 'Article modifié.' : 'Article ajouté.');
+    modeCreation();
+    charger();
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
+});
+
+$('btn-annuler').addEventListener('click', () => {
+  modeCreation();
+  afficherMessage('');
+});
+
+// --- Tableau ---
+function creerBouton(texte, action) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.textContent = texte;
+  b.addEventListener('click', action);
+  return b;
+}
+
+async function supprimer(a) {
+  if (!confirm(`Supprimer « ${a.nom} » (${a.code_barre}) ?`)) return;
+  try {
+    await api('/api/admin/articles/' + encodeURIComponent(a.code_barre), { method: 'DELETE' });
+    afficherMessage('Article supprimé.');
+    if (codeEnEdition === a.code_barre) modeCreation();
+    charger();
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
+}
 
 function creerLigne(a) {
   const tr = document.createElement('tr');
@@ -10,19 +107,25 @@ function creerLigne(a) {
     td.textContent = v;
     tr.appendChild(td);
   });
+  const actions = document.createElement('td');
+  actions.append(
+    creerBouton('Modifier', () => modeEdition(a)),
+    creerBouton('Supprimer', () => supprimer(a))
+  );
+  tr.appendChild(actions);
   return tr;
 }
 
 async function charger() {
   const p = new URLSearchParams({ tri: etat.tri, ordre: etat.ordre });
   filtres.forEach((i) => p.set(i.dataset.filtre, i.value.trim()));
-
-  const rep = await fetch('/api/admin/inventaire?' + p);
-  if (rep.status === 401 || rep.status === 403) { window.location.href = '/'; return; }
-  const lignes = await rep.json();
-
-  corps.replaceChildren(...lignes.map(creerLigne));
-  document.getElementById('compteur').textContent = `${lignes.length} article(s)`;
+  try {
+    const lignes = await api('/api/admin/inventaire?' + p);
+    $('corps').replaceChildren(...lignes.map(creerLigne));
+    $('compteur').textContent = `${lignes.length} article(s)`;
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
 }
 
 document.querySelectorAll('[data-tri]').forEach((btn) => {
@@ -41,11 +144,12 @@ filtres.forEach((i) => i.addEventListener('input', () => {
   minuteur = setTimeout(charger, 300); // évite une requête par frappe
 }));
 
-document.getElementById('raz').addEventListener('click', () => setTimeout(charger, 0));
+$('raz').addEventListener('click', () => setTimeout(charger, 0));
 
-document.getElementById('deconnexion').addEventListener('click', async () => {
+$('deconnexion').addEventListener('click', async () => {
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/';
 });
 
+modeCreation();
 charger();

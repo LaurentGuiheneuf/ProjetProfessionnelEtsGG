@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <title>Historique - Stock Peinture</title>
+</head>
+<body>
+    <header>
+        <h1>Historique des mouvements</h1>
+        <nav><a href="/admin">&larr; Retour à l'inventaire</a></nav>
+        <button type="button" id="deconnexion">Déconnexion</button>
+    </header>
+
+    <main>
+        <section id="section-correction">
+            <h2>Mouvement correctif</h2>
+            <form id="form-correction">
+                <label for="c-code">Code-barre
+                    <input type="text" id="c-code" inputmode="numeric" maxlength="13" required autocomplete="off">
+                </label>
+                <label for="c-sens">Sens
+                    <select id="c-sens">
+                        <option value="1">Ajouter au stock (+)</option>
+                        <option value="-1">Retirer du stock (−)</option>
+                    </select>
+                </label>
+                <label for="c-quantite">Quantité
+                    <input type="number" id="c-quantite" min="1" step="1" value="1" required>
+                </label>
+                <label for="c-motif">Motif (obligatoire)
+                    <input type="text" id="c-motif" minlength="3" maxlength="200" required>
+                </label>
+                <button type="submit">Enregistrer la correction</button>
+            </form>
+        </section>
+
+        <p id="message" role="alert"></p>
+
+        <section id="section-historique">
+            <h2>Mouvements</h2>
+            <form id="filtres">
+                <label>Code-barre <input type="search" data-filtre="code"></label>
+                <label>Article <input type="search" data-filtre="nom"></label>
+                <label>Utilisateur <input type="search" data-filtre="utilisateur"></label>
+                <label>Du <input type="date" data-filtre="du"></label>
+                <label>Au <input type="date" data-filtre="au"></label>
+                <label>Type
+                    <select data-filtre="sens">
+                        <option value="">Tous</option>
+                        <option value="ajout">Ajouts</option>
+                        <option value="retrait">Retraits</option>
+                        <option value="correctif">Correctifs</option>
+                    </select>
+                </label>
+                <button type="submit">Filtrer</button>
+                <button type="reset" id="raz">Réinitialiser</button>
+            </form>
+
+            <div class="tableau-conteneur">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>N°</th>
+                            <th>Date</th>
+                            <th>Article</th>
+                            <th>Code-barre</th>
+                            <th>Utilisateur</th>
+                            <th>Quantité</th>
+                            <th>Motif</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corps"></tbody>
+                </table>
+            </div>
+
+            <div class="pagination">
+                <button type="button" id="precedent">Précédent</button>
+                <span id="page-info" role="status"></span>
+                <button type="button" id="suivant">Suivant</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="/js/historique.js" defer></script>
+</body>
+</html>

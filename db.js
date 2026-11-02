@@ -27,6 +27,17 @@ CREATE TABLE IF NOT EXISTS mouvement (
   utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id)
 );
 `);
+
+// Migration : colonnes ajoutées pour l'historique et les corrections
+const colonnes = db.prepare('PRAGMA table_info(mouvement)').all().map((c) => c.name);
+if (!colonnes.includes('motif')) {
+  db.exec('ALTER TABLE mouvement ADD COLUMN motif TEXT');
+}
+if (!colonnes.includes('correctif')) {
+  db.exec('ALTER TABLE mouvement ADD COLUMN correctif INTEGER NOT NULL DEFAULT 0');
+}
+
 db.exec('CREATE INDEX IF NOT EXISTS idx_mouvement_code ON mouvement(code_barre)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_mouvement_date ON mouvement(date)');
 
 module.exports = db;
