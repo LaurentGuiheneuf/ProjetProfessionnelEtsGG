@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/assets/css/style.css">
+    <title>Scan - Stock Peinture</title>
+</head>
+<body>
+    <header>
+        <figure id="banniere">
+            <img src="/images/Banniere_Locaux_Entreprise_GG.png" alt="Entrepôt de l'entreprise">
+        </figure>
+        <h1>Scan d'article</h1>
+        <button type="button" id="deconnexion">Déconnexion</button> 
+    </header>
+
+    <main>
+        <section id="zone-scan">
+            <label for="choix-camera">Caméra :</label>
+            <select id="choix-camera"></select>
+            <button type="button" id="actualiser-cameras">Actualiser les caméras</button>
+
+            <div id="lecteur"></div>
+            <p id="etat-camera" role="status"></p>
+
+            <form id="saisie-manuelle">
+                <label for="code-manuel">Code-barre manuel :</label>
+                <input type="text" id="code-manuel" inputmode="numeric" autocomplete="off">
+                <button type="submit">Chercher</button>
+            </form>
+        </section>
+
+        <section id="fiche" hidden>
+            <h2 id="f-nom"></h2>
+            <dl>
+                <dt>Couleur</dt><dd id="f-couleur"></dd>
+                <dt>Finition</dt><dd id="f-finition"></dd>
+                <dt>Fabricant</dt><dd id="f-fabricant"></dd>
+                <dt>Code-barre</dt><dd id="f-code"></dd>
+                <dt>Stock actuel</dt><dd id="f-stock"></dd>
+            </dl>
+
+            <label for="quantite">Quantité :</label>
+            <input type="number" id="quantite" min="1" step="1" value="1" inputmode="numeric">
+
+            <div class="actions">
+                <button type="button" id="btn-ajout">J'ajoute</button>
+                <button type="button" id="btn-retrait">J'utilise</button>
+            </div>
+            <button type="button" id="btn-autre">Scanner un autre article</button>
+        </section>
+
+        <p id="message" role="alert"></p>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="/js/scan.js" defer></script>
+</body>
+</html>
