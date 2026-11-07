@@ -4,6 +4,15 @@ let codeCourant = null;
 let enCours = false;
 let dernierRejet = '';
 
+let role = null;
+
+async function lireRole() {
+  try {
+    role = (await api('/api/me')).role;
+    $('nav-admin').hidden = role !== 'admin';
+  } catch (_) { /* non connecté : redirigé par api() */ }
+}
+
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
@@ -112,6 +121,7 @@ async function arreterScan() {
 async function chargerArticle(code) {
   if (enCours) return;
   enCours = true;
+  $('creation').hidden = true;
   try {
     await arreterScan();
     const a = await api('/api/articles/' + encodeURIComponent(code));
@@ -128,6 +138,10 @@ async function chargerArticle(code) {
     afficherMessage('');
   } catch (e) {
     afficherMessage(`${e.message} (code lu : ${code})`, true);
+    if (e.message === 'Article inconnu' && role === 'admin') {
+    $('lien-creation').href = '/admin?code=' + encodeURIComponent(code);
+    $('creation').hidden = false;
+  }
     await demarrerScan();
   } finally {
     enCours = false;
@@ -188,4 +202,5 @@ $('deconnexion').addEventListener('click', async () => {
   window.location.href = '/';
 });
 
+lireRole();
 demarrerScan();

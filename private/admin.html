@@ -4,17 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/assets/css/style.css">
-    <title>Inventaire-Stock Peinture</title>
+    <title>Inventaire - Stock Peinture</title>
 </head>
 <body>
     <header>
         <figure id="banniere">
-            <img src="./images/Photo_Locaux_Entreprise_GG2.png" alt="Entrepôt de l'entreprise">
+            <img src="/assets/images/Photo_Locaux_Entreprise_GG2.png" alt="Entrepôt de l'entreprise">
         </figure>
         <h1>Inventaire</h1>
         <nav>
             <a href="/admin/historique">Historique des mouvements</a> |
-            <a href="/admin/utilisateurs">Utilisateurs</a>
+            <a href="/admin/utilisateurs">Utilisateurs</a> |
+            <a href="/scan.html">Scan</a>
         </nav>
         <button type="button" id="deconnexion">Déconnexion</button>
     </header>
@@ -27,18 +28,23 @@
                     <input type="text" id="a-code" name="code_barre" inputmode="numeric"
                            maxlength="13" required autocomplete="off">
                 </label>
+                <p id="aide-code" role="status"></p>
                 <label for="a-nom">Nom
-                    <input type="text" id="a-nom" name="nom" maxlength="100" required>
+                    <input type="text" id="a-nom" name="nom" maxlength="100" required list="l-nom">
                 </label>
                 <label for="a-couleur">Couleur
-                    <input type="text" id="a-couleur" name="couleur" maxlength="100" required>
+                    <input type="text" id="a-couleur" name="couleur" maxlength="100" required list="l-couleur">
                 </label>
                 <label for="a-finition">Finition
-                    <input type="text" id="a-finition" name="finition" maxlength="100" required>
+                    <input type="text" id="a-finition" name="finition" maxlength="100" required list="l-finition">
                 </label>
                 <label for="a-fabricant">Fabricant
-                    <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required>
+                    <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required list="l-fabricant">
                 </label>
+                <datalist id="l-nom"></datalist>
+                <datalist id="l-couleur"></datalist>
+                <datalist id="l-finition"></datalist>
+                <datalist id="l-fabricant"></datalist>
                 <label for="a-stock" id="label-stock">Stock initial
                     <input type="number" id="a-stock" name="stock_initial" min="0" step="1" value="0">
                 </label>

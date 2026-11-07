@@ -396,6 +396,63 @@ app.post('/api/admin/utilisateurs/:id/mot-de-passe', exigerAdmin, async (req, re
   }
 });
 
+// --- Rôle de l'utilisateur connecté ---
+app.get('/api/me', exigerConnexion, (req, res) => {
+  res.json({ role: req.session.user.role });
+});
+
+// --- Admin : valeurs existantes (suggestions) ---
+app.get('/api/admin/suggestions', exigerAdmin, (req, res) => {
+  const liste = (col) =>
+    db.prepare(`SELECT DISTINCT ${col} AS v FROM article ORDER BY v COLLATE NOCASE`)
+      .all().map((r) => r.v);
+  res.json({
+    nom: liste('nom'),
+    couleur: liste('couleur'),
+    finition: liste('finition'),
+    fabricant: liste('fabricant'),
+  });
+});
+
+// --- Admin : fabricants connus pour un préfixe de code (estimation : 7 chiffres) ---
+const LONGUEUR_PREFIXE = 7;
+
+app.get('/api/admin/prefixe/:code', exigerAdmin, (req, res) => {
+  const code = req.params.code;
+  if (!/^\d{13}$/.test(code)) return res.json({ fabricants: [] });
+  const lignes = db.prepare(`
+    SELECT fabricant, COUNT(*) AS n FROM article
+    WHERE code_barre LIKE ? AND length(code_barre) = 13
+    GROUP BY fabricant ORDER BY n DESC
+  `).all(code.slice(0, LONGUEUR_PREFIXE) + '%');
+  res.json({ fabricants: lignes.map((l) => l.fabricant) });
+});
+
+// --- Admin : recherche externe (Open Products Facts), appelée côté serveur ---
+app.get('/api/admin/recherche-code/:code', exigerAdmin, async (req, res) => {
+  const code = req.params.code;
+  if (!codeValide(code)) return res.status(400).json({ erreur: 'Code-barre invalide' });
+  try {
+    const rep = await fetch(
+      `https://world.openproductsfacts.org/api/v2/product/${code}.json?fields=product_name,brands`,
+      {
+        headers: { 'User-Agent': 'StockPeinture/1.0 (usage interne)' },
+        signal: AbortSignal.timeout(5000),
+      }
+    );
+    if (!rep.ok) return res.json({ trouve: false });
+    const d = await rep.json();
+    if (d.status !== 1 || !d.product) return res.json({ trouve: false });
+    res.json({
+      trouve: true,
+      nom: String(d.product.product_name ?? '').trim().slice(0, 100),
+      fabricant: String(d.product.brands ?? '').split(',')[0].trim().slice(0, 100),
+    });
+  } catch (e) {
+    res.json({ trouve: false }); // service indisponible ou lent : repli manuel
+  }
+});
+
 // --- Pages protégées ---
 const pageAdmin = (fichier) => (req, res) => {
   if (req.session.user?.role !== 'admin') return res.redirect('/');

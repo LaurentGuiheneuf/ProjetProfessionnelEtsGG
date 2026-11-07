@@ -4,14 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/assets/css/style.css">
+
     <title>Scan - Stock Peinture</title>
 </head>
 <body>
     <header>
         <figure id="banniere">
-            <img src="./images/Photo_Locaux_Entreprise_GG2.png" alt="Entrepôt de l'entreprise">
+            <img src="/public/assets/images/Photo_Locaux_Entreprise_GG2.png" alt="Entrepôt de l'entreprise">
         </figure>
         <h1>Scan d'article</h1>
+        <nav id="nav-admin" hidden>
+            <a href="/admin">Espace administrateur</a>
+        </nav>
         <button type="button" id="deconnexion">Déconnexion</button> 
     </header>
 
@@ -52,6 +56,7 @@
         </section>
 
         <p id="message" role="alert"></p>
+        <p id="creation" hidden><a id="lien-creation" href="#">Créer cet article (administrateur)</a></p>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
