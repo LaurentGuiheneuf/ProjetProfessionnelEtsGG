@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const db = require('./db');
+const crypto = require('crypto');
 
 const app = express();
 
@@ -57,10 +58,49 @@ app.use((req, res, next) => {
   req.session.user.role = u.role; // changement de rôle appliqué immédiatement
   next();
 });
+// --- Protection CSRF ---
+const METHODES_SURES = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+function origineAutorisee(req) {
+  const site = req.get('sec-fetch-site');
+  if (site) return site === 'same-origin' || site === 'none';
+  const origine = req.get('origin');
+  if (origine) {
+    try { return new URL(origine).host === req.get('host'); } catch { return false; }
+  }
+  return false; // ni Sec-Fetch-Site ni Origin : requête refusée
+}
+
+app.use((req, res, next) => {
+  if (METHODES_SURES.has(req.method)) return next();
+
+  if (!origineAutorisee(req))
+    return res.status(403).json({ erreur: 'Origine de la requête refusée' });
+
+  if (req.path === '/api/login') return next();
+
+  const attendu = req.session.csrf;
+  const recu = req.get('x-csrf-token');
+  if (!attendu || typeof recu !== 'string')
+    return res.status(403).json({ erreur: 'Jeton CSRF manquant' });
+
+  const a = Buffer.from(attendu);
+  const b = Buffer.from(recu);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b))
+    return res.status(403).json({ erreur: 'Jeton CSRF invalide' });
+
+  next();
+});
 
 // --- Middlewares d'accès ---
 const exigerConnexion = (req, res, next) =>
   req.session.user ? next() : res.status(401).json({ erreur: 'Non connecté' });
+
+app.get('/api/csrf', exigerConnexion, (req, res) => {
+  if (!req.session.csrf) req.session.csrf = crypto.randomBytes(32).toString('hex');
+  res.set('Cache-Control', 'no-store');
+  res.json({ token: req.session.csrf });
+});
 
 const exigerAdmin = (req, res, next) =>
   req.session.user?.role === 'admin'
