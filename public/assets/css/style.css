@@ -79,3 +79,5 @@ header nav a { color: white; }
 .form-grille { display: grid; gap: 10px; max-width: 480px; }
 .form-grille label { display: grid; gap: 4px; }
 .ligne-inactive { color: #777; background: #eee; }
+
+#valorisation { font-weight: bold; }

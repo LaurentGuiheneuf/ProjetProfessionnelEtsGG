@@ -25,8 +25,7 @@
             <h2 id="titre-form">Ajouter un article</h2>
             <form id="form-article">
                 <label for="a-code">Code-barre
-                    <input type="text" id="a-code" name="code_barre" inputmode="numeric"
-                           maxlength="13" required autocomplete="off">
+                    <input type="text" id="a-code" name="code_barre" maxlength="30" required autocomplete="off" autocapitalize="characters">
                 </label>
                 <p id="aide-code" role="status"></p>
                 <label for="a-nom">Nom
@@ -38,13 +37,21 @@
                 <label for="a-finition">Finition
                     <input type="text" id="a-finition" name="finition" maxlength="100" required list="l-finition">
                 </label>
+                <label for="a-texture">Texture
+                    <input type="text" id="a-texture" name="texture" maxlength="100" required list="l-texture">
+                </label>
                 <label for="a-fabricant">Fabricant
                     <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required list="l-fabricant">
+                </label>
+                <label for="a-prix">Prix unitaire (€)
+                    <input type="text" id="a-prix" name="prix" inputmode="decimal"
+                        pattern="\d{1,7}([.,]\d{1,2})?" placeholder="ex. 12,50">
                 </label>
                 <datalist id="l-nom"></datalist>
                 <datalist id="l-couleur"></datalist>
                 <datalist id="l-finition"></datalist>
                 <datalist id="l-fabricant"></datalist>
+                <datalist id="l-texture"></datalist>
                 <label for="a-stock" id="label-stock">Stock initial
                     <input type="number" id="a-stock" name="stock_initial" min="0" step="1" value="0">
                 </label>
@@ -63,6 +70,7 @@
                 <label>Nom <input type="search" data-filtre="nom"></label>
                 <label>Couleur <input type="search" data-filtre="couleur"></label>
                 <label>Finition <input type="search" data-filtre="finition"></label>
+                <label>Texture <input type="search" data-filtre="texture"></label>
                 <label>Fabricant <input type="search" data-filtre="fabricant"></label>
                 <button type="reset" id="raz">Réinitialiser</button>
             </form>
@@ -74,9 +82,12 @@
                             <th aria-sort="ascending"><button type="button" data-tri="nom">Nom</button></th>
                             <th aria-sort="none"><button type="button" data-tri="couleur">Couleur</button></th>
                             <th aria-sort="none"><button type="button" data-tri="finition">Finition</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="texture">Texture</button></th>
                             <th aria-sort="none"><button type="button" data-tri="fabricant">Fabricant</button></th>
                             <th>Code-barre</th>
                             <th aria-sort="none"><button type="button" data-tri="quantite">Quantité</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="prix">Prix unitaire</button></th>
+                            <th aria-sort="none"><button type="button" data-tri="valeur">Valeur</button></th>
                             <th>Actions</th>
                         </tr>
                     </thead>
@@ -84,6 +95,7 @@
                 </table>
             </div>
             <p id="compteur" role="status"></p>
+            <p id="valorisation" role="status"></p>
         </section>
     </main>
 

@@ -31,7 +31,14 @@ async function api(url, options) {
 }
 
 // Contrôle GS1 : 8, 12 ou 13 chiffres + chiffre de clé
-function codeValide(code) {
+// --- Codes-barres : format fabricant (Code 128) ou EAN (8/12/13 chiffres) ---
+const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
+
+function normaliserCode(brut) {
+  return String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+}
+
+function codeEanValide(code) {
   if (!/^(\d{8}|\d{12}|\d{13})$/.test(code)) return false;
   const chiffres = code.split('').map(Number);
   const cle = chiffres.pop();
@@ -39,6 +46,10 @@ function codeValide(code) {
     .reverse()
     .reduce((s, n, i) => s + n * (i % 2 === 0 ? 3 : 1), 0);
   return (10 - (somme % 10)) % 10 === cle;
+}
+
+function codeValide(code) {
+  return FORMAT_FABRICANT.test(code) || codeEanValide(code);
 }
 
 // --- Choix de la caméra ---
@@ -70,6 +81,7 @@ async function demarrerScan() {
   if (!scanner) {
     scanner = new Html5Qrcode('lecteur', {
       formatsToSupport: [
+        Html5QrcodeSupportedFormats.CODE_128,
         Html5QrcodeSupportedFormats.EAN_13,
         Html5QrcodeSupportedFormats.EAN_8,
         Html5QrcodeSupportedFormats.UPC_A,
@@ -87,15 +99,16 @@ async function demarrerScan() {
     await scanner.start(
       cameraId,
       { fps: 10 }, // pas de qrbox : image entière analysée
-      (code) => {
-        if (!codeValide(code)) {
-          if (code !== dernierRejet) {
-            dernierRejet = code;
-            afficherMessage(`Lecture invalide : ${code}`, true);
-          }
-          return; // la caméra continue de scanner
+      (brut) => {
+      const code = normaliserCode(brut);
+      if (!codeValide(code)) {
+        if (code !== dernierRejet) {
+          dernierRejet = code;
+          afficherMessage(`Lecture invalide : ${brut}`, true);
         }
-        chargerArticle(code);
+        return; // la caméra continue de scanner
+      }
+      chargerArticle(code);
       },
       () => {
         imagesSansCode++;
@@ -129,6 +142,7 @@ async function chargerArticle(code) {
     $('f-nom').textContent = a.nom;
     $('f-couleur').textContent = a.couleur;
     $('f-finition').textContent = a.finition;
+    $('f-texture').textContent = a.texture;
     $('f-fabricant').textContent = a.fabricant;
     $('f-code').textContent = a.code_barre;
     $('f-stock').textContent = a.stock;
@@ -192,7 +206,7 @@ $('btn-autre').addEventListener('click', () => {
 
 $('saisie-manuelle').addEventListener('submit', (e) => {
   e.preventDefault();
-  const code = $('code-manuel').value.trim();
+  const code = normaliserCode($('code-manuel').value);
   if (code) chargerArticle(code);
 });
 

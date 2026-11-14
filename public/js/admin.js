@@ -5,6 +5,14 @@ let minuteur;
 let codeEnEdition = null; // null = mode création
 let jetonAuto = 0;        // ignore les réponses périmées du préremplissage
 
+const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
+const normaliserCode = (brut) =>
+  String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+
+const formatEuro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
+const enEuros = (centimes) => formatEuro.format(centimes / 100);
+const prixEnTexte = (c) => (c === null || c === undefined ? '' : (c / 100).toFixed(2).replace('.', ','));
+
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
@@ -26,7 +34,7 @@ async function api(url, options) {
 async function chargerSuggestions() {
   try {
     const s = await api('/api/admin/suggestions');
-    for (const cle of ['nom', 'couleur', 'finition', 'fabricant']) {
+    for (const cle of ['nom', 'couleur', 'finition', 'texture', 'fabricant']) {
       $('l-' + cle).replaceChildren(
         ...s[cle].map((v) => {
           const o = document.createElement('option');
@@ -39,10 +47,18 @@ async function chargerSuggestions() {
 }
 
 // --- Préremplissage à partir du code-barre ---
-async function preremplir(code) {
+async function preremplir(brut) {
+  const code = normaliserCode(brut);
   const jeton = ++jetonAuto;
   $('aide-code').textContent = '';
-  if (codeEnEdition || !/^\d+$/.test(code) || ![8, 12, 13].includes(code.length)) return;
+  if (codeEnEdition || !code) return;
+
+  if (FORMAT_FABRICANT.test(code)) {
+    $('aide-code').textContent =
+      'Code au format fabricant : pas de recherche externe, saisie manuelle.';
+    return;
+  }
+  if (!/^\d+$/.test(code) || ![8, 12, 13].includes(code.length)) return;
 
   const vide = (id) => !$(id).value.trim();
   const rempli = [];
@@ -99,6 +115,8 @@ function modeEdition(a) {
   $('a-nom').value = a.nom;
   $('a-couleur').value = a.couleur;
   $('a-finition').value = a.finition;
+  $('a-texture').value = a.texture;
+  $('a-prix').value = prixEnTexte(a.prix_centimes);
   $('a-fabricant').value = a.fabricant;
   $('aide-code').textContent = '';
   $('a-stock').disabled = true;
@@ -114,6 +132,8 @@ function dupliquer(a) {
   $('a-nom').value = a.nom;
   $('a-couleur').value = a.couleur;
   $('a-finition').value = a.finition;
+  $('a-texture').value = a.texture;
+  $('a-prix').value = prixEnTexte(a.prix_centimes);
   $('a-fabricant').value = a.fabricant;
   $('aide-code').textContent =
     `Copie de « ${a.nom} » : saisis le nouveau code-barre et ajuste la couleur.`;
@@ -176,7 +196,11 @@ async function supprimer(a) {
 
 function creerLigne(a) {
   const tr = document.createElement('tr');
-  [a.nom, a.couleur, a.finition, a.fabricant, a.code_barre, a.quantite].forEach((v) => {
+ [
+  a.nom, a.couleur, a.finition, a.texture, a.fabricant, a.code_barre, a.quantite,
+  a.prix_centimes === null ? 'Non renseigné' : enEuros(a.prix_centimes),
+  a.prix_centimes === null ? '—' : enEuros(a.valeur_centimes),
+].forEach((v) => {
     const td = document.createElement('td');
     td.textContent = v;
     tr.appendChild(td);
@@ -195,11 +219,17 @@ async function charger() {
   const p = new URLSearchParams({ tri: etat.tri, ordre: etat.ordre });
   filtres.forEach((i) => p.set(i.dataset.filtre, i.value.trim()));
   try {
-    const lignes = await api('/api/admin/inventaire?' + p);
-    $('corps').replaceChildren(...lignes.map(creerLigne));
-    $('compteur').textContent = `${lignes.length} article(s)`;
+  const lignes = await api('/api/admin/inventaire?' + p);
+  $('corps').replaceChildren(...lignes.map(creerLigne));
+  $('compteur').textContent = `${lignes.length} article(s)`;
+
+  const total = lignes.reduce((s, l) => s + l.valeur_centimes, 0);
+  const sansPrix = lignes.filter((l) => l.prix_centimes === null && l.quantite > 0).length;
+  $('valorisation').textContent =
+    `Valeur du stock affiché : ${enEuros(total)}` +
+    (sansPrix ? ` (${sansPrix} article(s) en stock sans prix, non valorisé(s))` : '');
   } catch (err) {
-    afficherMessage(err.message, true);
+  afficherMessage(err.message, true);
   }
 }
 
@@ -232,8 +262,8 @@ charger();
 chargerSuggestions();
 
 // Arrivée depuis le scan d'un code inconnu : /admin?code=...
-const codeUrl = new URLSearchParams(window.location.search).get('code');
-if (codeUrl && /^\d{8,13}$/.test(codeUrl)) {
+const codeUrl = normaliserCode(new URLSearchParams(window.location.search).get('code'));
+if (codeUrl && (FORMAT_FABRICANT.test(codeUrl) || /^\d{8,13}$/.test(codeUrl))) {
   $('a-code').value = codeUrl;
   preremplir(codeUrl);
 }

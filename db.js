@@ -45,4 +45,12 @@ if (!colonnesUtilisateur.includes('actif')) {
   db.exec('ALTER TABLE utilisateur ADD COLUMN actif INTEGER NOT NULL DEFAULT 1');
 }
 
+const colonnesArticle = db.prepare('PRAGMA table_info(article)').all().map((c) => c.name);
+if (!colonnesArticle.includes('texture')) {
+  db.exec("ALTER TABLE article ADD COLUMN texture TEXT NOT NULL DEFAULT ''");
+}
+if (!colonnesArticle.includes('prix_centimes')) {
+  db.exec('ALTER TABLE article ADD COLUMN prix_centimes INTEGER');
+}
+
 module.exports = db;

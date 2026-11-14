@@ -9,6 +9,8 @@ const crypto = require('crypto');
 
 const app = express();
 
+const CHAMPS = ['nom', 'couleur', 'finition', 'texture', 'fabricant'];
+
 // Derrière un proxy HTTPS (hébergeur) : décommenter
 // app.set('trust proxy', 1);
 
@@ -137,11 +139,13 @@ const SQL_TOTAL = `
 
 // --- Scan : infos d'un article + stock actuel ---
 app.get('/api/articles/:code', exigerConnexion, (req, res) => {
-  const article = db.prepare('SELECT * FROM article WHERE code_barre = ?')
-    .get(req.params.code);
+  const code = normaliserCode(req.params.code);
+  const article = db.prepare(
+    'SELECT code_barre, nom, couleur, finition, texture, fabricant FROM article WHERE code_barre = ?'
+  ).get(code);
   if (!article) return res.status(404).json({ erreur: 'Article inconnu' });
 
-  article.stock = db.prepare(SQL_TOTAL).get(req.params.code).total;
+  article.stock = db.prepare(SQL_TOTAL).get(code).total;
   res.json(article);
 });
 
@@ -158,8 +162,8 @@ const enregistrerMouvement = db.transaction((code, q, userId, motif = null, corr
 });
 
 app.post('/api/mouvements', exigerConnexion, (req, res) => {
-  const { code_barre, quantite } = req.body;
-  const q = Number(quantite);
+const code_barre = normaliserCode(req.body.code_barre);
+const q = Number(req.body.quantite);
 
   if (!code_barre || !Number.isInteger(q) || q === 0)
     return res.status(400).json({ erreur: 'Données invalides' });
@@ -179,7 +183,15 @@ app.post('/api/mouvements', exigerConnexion, (req, res) => {
 });
 
 // --- Admin : validation ---
-function codeValide(code) {
+
+// --- Codes-barres : format fabricant (Code 128) ou EAN (8/12/13 chiffres) ---
+const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
+
+function normaliserCode(brut) {
+  return String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+}
+
+function codeEanValide(code) {
   if (!/^(\d{8}|\d{12}|\d{13})$/.test(code)) return false;
   const chiffres = code.split('').map(Number);
   const cle = chiffres.pop();
@@ -187,6 +199,10 @@ function codeValide(code) {
     .reverse()
     .reduce((s, n, i) => s + n * (i % 2 === 0 ? 3 : 1), 0);
   return (10 - (somme % 10)) % 10 === cle;
+}
+
+function codeValide(code) {
+  return FORMAT_FABRICANT.test(code) || codeEanValide(code);
 }
 
 const CHAMPS = ['nom', 'couleur', 'finition', 'fabricant'];
@@ -201,13 +217,24 @@ function lireArticle(body) {
   return a;
 }
 
+function lirePrix(valeur) {
+  if (valeur === undefined || valeur === null || String(valeur).trim() === '')
+    return { ok: true, centimes: null };
+  const m = /^(\d{1,7})(?:[.,](\d{1,2}))?$/.exec(String(valeur).trim());
+  if (!m) return { ok: false };
+  return { ok: true, centimes: Number(m[1]) * 100 + Number((m[2] ?? '').padEnd(2, '0')) };
+}
+
 // --- Admin : inventaire trié / filtré ---
 const TRI_SQL = {
   nom: 'a.nom COLLATE NOCASE',
   couleur: 'a.couleur COLLATE NOCASE',
   finition: 'a.finition COLLATE NOCASE',
+  texture: 'a.texture COLLATE NOCASE',
   fabricant: 'a.fabricant COLLATE NOCASE',
   quantite: 'quantite',
+  prix: 'a.prix_centimes',
+  valeur: 'valeur_centimes',
 };
 
 app.get('/api/admin/inventaire', exigerAdmin, (req, res) => {
@@ -216,23 +243,28 @@ app.get('/api/admin/inventaire', exigerAdmin, (req, res) => {
   const filtre = (cle) => `%${req.query[cle] ?? ''}%`;
 
   const lignes = db.prepare(`
-    SELECT a.code_barre, a.nom, a.couleur, a.finition, a.fabricant,
-           COALESCE(SUM(m.quantite), 0) AS quantite
+    SELECT a.code_barre, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
+           a.prix_centimes,
+           COALESCE(SUM(m.quantite), 0) AS quantite,
+           COALESCE(SUM(m.quantite), 0) * COALESCE(a.prix_centimes, 0) AS valeur_centimes
     FROM article a
     LEFT JOIN mouvement m ON m.code_barre = a.code_barre
-    WHERE a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ? AND a.fabricant LIKE ?
+    WHERE a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
+      AND a.texture LIKE ? AND a.fabricant LIKE ?
     GROUP BY a.code_barre
     ORDER BY ${colonne} ${ordre}
-  `).all(filtre('nom'), filtre('couleur'), filtre('finition'), filtre('fabricant'));
+  `).all(filtre('nom'), filtre('couleur'), filtre('finition'),
+         filtre('texture'), filtre('fabricant'));
 
   res.json(lignes);
 });
 
 // --- Admin : créer un article (+ stock initial optionnel) ---
-const creerArticle = db.transaction((code, a, stockInitial, userId) => {
+const creerArticle = db.transaction((code, a, prixCentimes, stockInitial, userId) => {
   db.prepare(
-    'INSERT INTO article (code_barre, nom, couleur, finition, fabricant) VALUES (?, ?, ?, ?, ?)'
-  ).run(code, a.nom, a.couleur, a.finition, a.fabricant);
+    `INSERT INTO article (code_barre, nom, couleur, finition, texture, fabricant, prix_centimes)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(code, a.nom, a.couleur, a.finition, a.texture, a.fabricant, prixCentimes);
   if (stockInitial > 0) {
     db.prepare(
       'INSERT INTO mouvement (code_barre, quantite, utilisateur_id, motif) VALUES (?, ?, ?, ?)'
@@ -241,14 +273,17 @@ const creerArticle = db.transaction((code, a, stockInitial, userId) => {
 });
 
 app.post('/api/admin/articles', exigerAdmin, (req, res) => {
-  const code = String(req.body.code_barre ?? '').trim();
+  const code = normaliserCode(req.body.code_barre);
   const a = lireArticle(req.body);
+  const prix = lirePrix(req.body.prix);
   const stockInitial = Number(req.body.stock_initial ?? 0);
 
   if (!codeValide(code))
     return res.status(400).json({ erreur: 'Code-barre invalide (8, 12 ou 13 chiffres, clé correcte)' });
   if (!a)
     return res.status(400).json({ erreur: 'Champs manquants ou trop longs (100 caractères max)' });
+  if (!prix.ok)
+    return res.status(400).json({ erreur: 'Prix invalide (ex. 12,50)' });
   if (!Number.isInteger(stockInitial) || stockInitial < 0)
     return res.status(400).json({ erreur: 'Stock initial invalide' });
 
@@ -256,22 +291,25 @@ app.post('/api/admin/articles', exigerAdmin, (req, res) => {
     return res.status(409).json({ erreur: 'Ce code-barre existe déjà' });
 
   try {
-    creerArticle(code, a, stockInitial, req.session.user.id);
+    creerArticle(code, a, prix.centimes, stockInitial, req.session.user.id);
     res.status(201).json({ ok: true });
   } catch (e) {
     console.error(e);
     res.status(500).json({ erreur: 'Erreur serveur' });
   }
 });
-
 // --- Admin : modifier un article (le code-barre ne change pas) ---
 app.put('/api/admin/articles/:code', exigerAdmin, (req, res) => {
   const a = lireArticle(req.body);
   if (!a) return res.status(400).json({ erreur: 'Champs manquants ou trop longs (100 caractères max)' });
+  const prix = lirePrix(req.body.prix);
+  if (!prix.ok) return res.status(400).json({ erreur: 'Prix invalide (ex. 12,50)' });
 
   const r = db.prepare(
-    'UPDATE article SET nom = ?, couleur = ?, finition = ?, fabricant = ? WHERE code_barre = ?'
-  ).run(a.nom, a.couleur, a.finition, a.fabricant, req.params.code);
+    `UPDATE article SET nom = ?, couleur = ?, finition = ?, texture = ?, fabricant = ?,
+                        prix_centimes = ?
+     WHERE code_barre = ?`
+  ).run(a.nom, a.couleur, a.finition, a.texture, a.fabricant, prix.centimes, req.params.code);
 
   if (r.changes === 0) return res.status(404).json({ erreur: 'Article inconnu' });
   res.json({ ok: true });
@@ -319,7 +357,7 @@ app.get('/api/admin/mouvements', exigerAdmin, (req, res) => {
 
   const { total } = db.prepare(`SELECT COUNT(*) AS total ${base}`).get(...params);
   const lignes = db.prepare(`
-    SELECT m.id, m.date, m.code_barre, a.nom, a.couleur, a.finition, a.fabricant,
+    SELECT m.id, m.date, m.code_barre, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
            u.nom AS utilisateur, m.quantite, m.motif, m.correctif
     ${base}
     ORDER BY m.id DESC
@@ -444,12 +482,13 @@ app.get('/api/me', exigerConnexion, (req, res) => {
 // --- Admin : valeurs existantes (suggestions) ---
 app.get('/api/admin/suggestions', exigerAdmin, (req, res) => {
   const liste = (col) =>
-    db.prepare(`SELECT DISTINCT ${col} AS v FROM article ORDER BY v COLLATE NOCASE`)
+    db.prepare(`SELECT DISTINCT ${col} AS v FROM article WHERE ${col} <> '' ORDER BY v COLLATE NOCASE`)
       .all().map((r) => r.v);
   res.json({
     nom: liste('nom'),
     couleur: liste('couleur'),
     finition: liste('finition'),
+    texture: liste('texture'),
     fabricant: liste('fabricant'),
   });
 });
@@ -471,7 +510,7 @@ app.get('/api/admin/prefixe/:code', exigerAdmin, (req, res) => {
 // --- Admin : recherche externe (Open Products Facts), appelée côté serveur ---
 app.get('/api/admin/recherche-code/:code', exigerAdmin, async (req, res) => {
   const code = req.params.code;
-  if (!codeValide(code)) return res.status(400).json({ erreur: 'Code-barre invalide' });
+  if (!codeEanValide(code)) return res.status(400).json({ erreur: 'Code-barre invalide' });
   try {
     const rep = await fetch(
       `https://world.openproductsfacts.org/api/v2/product/${code}.json?fields=product_name,brands`,

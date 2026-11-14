@@ -37,7 +37,7 @@ function creerLigne(m) {
   const tr = document.createElement('tr');
   if (m.correctif) tr.className = 'ligne-correctif';
 
-  const libelle = `${m.nom} (${m.couleur}, ${m.finition}, ${m.fabricant})`;
+  const libelle = `${m.nom} (${[m.couleur, m.finition, m.texture, m.fabricant].filter(Boolean).join(', ')})`;
   const quantite = (m.quantite > 0 ? '+' : '') + m.quantite;
   [m.id, formaterDate(m.date), libelle, m.code_barre, m.utilisateur, quantite, m.motif ?? ''].forEach((v) => {
     const td = document.createElement('td');
