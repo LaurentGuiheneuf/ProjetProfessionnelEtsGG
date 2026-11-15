@@ -25,7 +25,7 @@
             <select id="choix-camera"></select>
             <button type="button" id="actualiser-cameras">Actualiser les caméras</button>
 
-            <div id="lecteur"></div>
+            <video id="lecteur" playsinline muted></video>
             <p id="etat-camera" role="status"></p>
 
             <form id="saisie-manuelle">
@@ -58,11 +58,12 @@
 
         <p id="message" role="alert"></p>
         <p id="creation" hidden><a id="lien-creation" href="#">Créer cet article (administrateur)</a></p>
+        <button type="button" id="btn-reprise" hidden>Scanner à nouveau</button>
+        
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <script src="/vendor/ponyfill.js"></script>
     <script src="/js/csrf.js" defer></script>
     <script src="/js/scan.js" defer></script>
-    
 </body>
 </html>

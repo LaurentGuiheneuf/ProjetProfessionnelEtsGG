@@ -53,4 +53,19 @@ if (!colonnesArticle.includes('prix_centimes')) {
   db.exec('ALTER TABLE article ADD COLUMN prix_centimes INTEGER');
 }
 
+if (!colonnesArticle.includes('actif')) {
+  db.exec('ALTER TABLE article ADD COLUMN actif INTEGER NOT NULL DEFAULT 1');
+}
 module.exports = db;
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS journal_suppression (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date TEXT NOT NULL DEFAULT (datetime('now')),
+  code_barre TEXT NOT NULL,
+  nom TEXT NOT NULL,
+  mouvements INTEGER NOT NULL,
+  stock INTEGER NOT NULL,
+  utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id)
+);
+`);

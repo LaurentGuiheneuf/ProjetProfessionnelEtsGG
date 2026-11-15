@@ -6,8 +6,9 @@ let codeEnEdition = null; // null = mode création
 let jetonAuto = 0;        // ignore les réponses périmées du préremplissage
 
 const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
+
 const normaliserCode = (brut) =>
-  String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+  String(brut ?? '').trim().toUpperCase().replace(/^[#$]/, '').replace(/\s+/g, '');
 
 const formatEuro = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR' });
 const enEuros = (centimes) => formatEuro.format(centimes / 100);
@@ -17,6 +18,7 @@ function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
   m.className = erreur ? 'erreur' : 'succes';
+  if (texte) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function api(url, options) {
@@ -124,11 +126,13 @@ function modeEdition(a) {
   $('titre-form').textContent = 'Modifier l\u2019article';
   $('btn-enregistrer').textContent = 'Enregistrer';
   $('btn-annuler').hidden = false;
+  $('section-article').open = true;
   $('section-article').scrollIntoView({ behavior: 'smooth' });
 }
 
 function dupliquer(a) {
   modeCreation();
+  $('section-article').open = true;
   $('a-nom').value = a.nom;
   $('a-couleur').value = a.couleur;
   $('a-finition').value = a.finition;
@@ -158,8 +162,10 @@ $('form-article').addEventListener('submit', async (e) => {
 
   try {
     await enregistrement;
-    afficherMessage(codeEnEdition ? 'Article modifié.' : 'Article ajouté.');
+    const etaitModification = Boolean(codeEnEdition);
+    afficherMessage(etaitModification ? 'Article modifié.' : 'Article ajouté.');
     modeCreation();
+    if (etaitModification) $('section-article').open = false;
     charger();
     chargerSuggestions();
   } catch (err) {
@@ -169,14 +175,16 @@ $('form-article').addEventListener('submit', async (e) => {
 
 $('btn-annuler').addEventListener('click', () => {
   modeCreation();
+  $('section-article').open = false;
   afficherMessage('');
 });
 
 // --- Tableau ---
-function creerBouton(texte, action) {
+function creerBouton(texte, action, classe = '') {
   const b = document.createElement('button');
   b.type = 'button';
   b.textContent = texte;
+  if (classe) b.className = classe;
   b.addEventListener('click', action);
   return b;
 }
@@ -186,6 +194,62 @@ async function supprimer(a) {
   try {
     await api('/api/admin/articles/' + encodeURIComponent(a.code_barre), { method: 'DELETE' });
     afficherMessage('Article supprimé.');
+    if (codeEnEdition === a.code_barre) modeCreation();
+    charger();
+    chargerSuggestions();
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
+}
+
+async function archiver(a, actif) {
+  const question = actif
+    ? `Restaurer « ${a.nom} » ?`
+    : `Archiver « ${a.nom} » (${a.code_barre}) ? Il disparaît de la liste et du scan, mais son historique reste consultable.`;
+  if (!confirm(question)) return;
+  try {
+    await api('/api/admin/articles/' + encodeURIComponent(a.code_barre) + '/archivage', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actif }),
+    });
+    afficherMessage(actif ? 'Article restauré.' : 'Article archivé.');
+    if (codeEnEdition === a.code_barre) modeCreation();
+    charger();
+    chargerSuggestions();
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
+}
+
+async function supprimerDefinitivement(a) {
+  const ok = confirm(
+    `ATTENTION : suppression DÉFINITIVE de « ${a.nom} » (${a.code_barre}).\n\n` +
+    `Elle efface aussi ${a.mouvements} mouvement(s) d'historique ` +
+    `et le stock actuel (${a.quantite} kg).\n` +
+    `Cette action est irréversible.\n\nContinuer ?`
+  );
+  if (!ok) return;
+
+  const saisie = prompt(
+    `Seconde confirmation.\nSaisis le code-barre exact pour valider :\n\n${a.code_barre}`
+  );
+  if (saisie === null) return;
+  if (normaliserCode(saisie) !== a.code_barre) {
+    afficherMessage('Code saisi incorrect : suppression annulée.', true);
+    return;
+  }
+
+  try {
+    const r = await api(
+      '/api/admin/articles/' + encodeURIComponent(a.code_barre) + '/suppression-definitive',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmation: saisie }),
+      }
+    );
+    afficherMessage(`Article supprimé définitivement (${r.mouvements} mouvement(s) effacé(s)).`);
     if (codeEnEdition === a.code_barre) modeCreation();
     charger();
     chargerSuggestions();
@@ -206,11 +270,22 @@ function creerLigne(a) {
     tr.appendChild(td);
   });
   const actions = document.createElement('td');
-  actions.append(
-    creerBouton('Modifier', () => modeEdition(a)),
-    creerBouton('Dupliquer', () => dupliquer(a)),
-    creerBouton('Supprimer', () => supprimer(a))
-  );
+  if (a.actif) {
+    actions.append(
+      creerBouton('Modifier', () => modeEdition(a)),
+      creerBouton('Dupliquer', () => dupliquer(a)),
+      a.mouvements === 0
+        ? creerBouton('Supprimer', () => supprimer(a))
+        : creerBouton('Archiver', () => archiver(a, false))
+    );
+  } else {
+    actions.append(creerBouton('Restaurer', () => archiver(a, true)));
+  }
+  if (a.mouvements > 0 || !a.actif) {
+    actions.append(
+      creerBouton('Supprimer définitivement', () => supprimerDefinitivement(a), 'danger')
+    );
+  }
   tr.appendChild(actions);
   return tr;
 }
@@ -256,6 +331,10 @@ $('deconnexion').addEventListener('click', async () => {
   window.location.href = '/';
 });
 
+$('section-article').addEventListener('toggle', () => {
+  if ($('section-article').open && !codeEnEdition) $('a-code').focus();
+});
+
 // --- Démarrage ---
 modeCreation();
 charger();
@@ -266,4 +345,6 @@ const codeUrl = normaliserCode(new URLSearchParams(window.location.search).get('
 if (codeUrl && (FORMAT_FABRICANT.test(codeUrl) || /^\d{8,13}$/.test(codeUrl))) {
   $('a-code').value = codeUrl;
   preremplir(codeUrl);
+  $('section-article').open = true;
 }
+

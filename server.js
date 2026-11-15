@@ -19,7 +19,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", 'https://cdn.jsdelivr.net'],
+      scriptSrc: ["'self'", "'wasm-unsafe-eval'", 'https://cdn.jsdelivr.net'],
       styleSrc: ["'self'", 'https://cdn.jsdelivr.net'],
       imgSrc: ["'self'", 'data:'],
     },
@@ -141,12 +141,14 @@ const SQL_TOTAL = `
 app.get('/api/articles/:code', exigerConnexion, (req, res) => {
   const code = normaliserCode(req.params.code);
   const article = db.prepare(
-    'SELECT code_barre, nom, couleur, finition, texture, fabricant FROM article WHERE code_barre = ?'
+    'SELECT code_barre, nom, couleur, finition, texture, fabricant, actif FROM article WHERE code_barre = ?'
   ).get(code);
   if (!article) return res.status(404).json({ erreur: 'Article inconnu' });
+  if (!article.actif) return res.status(404).json({ erreur: 'Article archivé' });
 
-  article.stock = db.prepare(SQL_TOTAL).get(code).total;
-  res.json(article);
+  const { actif, ...fiche } = article;
+  fiche.stock = db.prepare(SQL_TOTAL).get(code).total;
+  res.json(fiche);
 });
 
 // --- Enregistrement d'un mouvement (+ ajout / − utilisation) ---
@@ -168,8 +170,9 @@ const q = Number(req.body.quantite);
   if (!code_barre || !Number.isInteger(q) || q === 0)
     return res.status(400).json({ erreur: 'Données invalides' });
 
-  const existe = db.prepare('SELECT 1 FROM article WHERE code_barre = ?').get(code_barre);
-  if (!existe) return res.status(404).json({ erreur: 'Article inconnu' });
+  const article = db.prepare('SELECT actif FROM article WHERE code_barre = ?').get(code_barre);
+  if (!article) return res.status(404).json({ erreur: 'Article inconnu' });
+  if (!article.actif) return res.status(409).json({ erreur: 'Article archivé' });
 
   try {
     const nouveauStock = enregistrerMouvement(code_barre, q, req.session.user.id);
@@ -188,7 +191,7 @@ const q = Number(req.body.quantite);
 const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
 
 function normaliserCode(brut) {
-  return String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+  return String(brut ?? '').trim().toUpperCase().replace(/^[#$]/, '').replace(/\s+/g, '');
 }
 
 function codeEanValide(code) {
@@ -204,8 +207,6 @@ function codeEanValide(code) {
 function codeValide(code) {
   return FORMAT_FABRICANT.test(code) || codeEanValide(code);
 }
-
-const CHAMPS = ['nom', 'couleur', 'finition', 'fabricant'];
 
 function lireArticle(body) {
   const a = {};
@@ -241,19 +242,21 @@ app.get('/api/admin/inventaire', exigerAdmin, (req, res) => {
   const colonne = Object.hasOwn(TRI_SQL, req.query.tri) ? TRI_SQL[req.query.tri] : TRI_SQL.nom;
   const ordre = req.query.ordre === 'desc' ? 'DESC' : 'ASC';
   const filtre = (cle) => `%${req.query[cle] ?? ''}%`;
+  const actif = req.query.statut === 'archives' ? 0 : 1;
 
   const lignes = db.prepare(`
     SELECT a.code_barre, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
-           a.prix_centimes,
+           a.prix_centimes, a.actif,
            COALESCE(SUM(m.quantite), 0) AS quantite,
+           COUNT(m.id) AS mouvements,
            COALESCE(SUM(m.quantite), 0) * COALESCE(a.prix_centimes, 0) AS valeur_centimes
     FROM article a
     LEFT JOIN mouvement m ON m.code_barre = a.code_barre
-    WHERE a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
+    WHERE a.actif = ? AND a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
       AND a.texture LIKE ? AND a.fabricant LIKE ?
     GROUP BY a.code_barre
     ORDER BY ${colonne} ${ordre}
-  `).all(filtre('nom'), filtre('couleur'), filtre('finition'),
+  `).all(actif, filtre('nom'), filtre('couleur'), filtre('finition'),
          filtre('texture'), filtre('fabricant'));
 
   res.json(lignes);
@@ -287,8 +290,13 @@ app.post('/api/admin/articles', exigerAdmin, (req, res) => {
   if (!Number.isInteger(stockInitial) || stockInitial < 0)
     return res.status(400).json({ erreur: 'Stock initial invalide' });
 
-  if (db.prepare('SELECT 1 FROM article WHERE code_barre = ?').get(code))
-    return res.status(409).json({ erreur: 'Ce code-barre existe déjà' });
+  const existant = db.prepare('SELECT actif FROM article WHERE code_barre = ?').get(code);
+  if (existant)
+    return res.status(409).json({
+      erreur: existant.actif
+        ? 'Ce code-barre existe déjà'
+        : 'Ce code-barre existe déjà (article archivé : restaure-le depuis la liste des archivés)',
+    });
 
   try {
     creerArticle(code, a, prix.centimes, stockInitial, req.session.user.id);
@@ -320,11 +328,66 @@ app.delete('/api/admin/articles/:code', exigerAdmin, (req, res) => {
   const { n } = db.prepare('SELECT COUNT(*) AS n FROM mouvement WHERE code_barre = ?')
     .get(req.params.code);
   if (n > 0)
-    return res.status(409).json({ erreur: 'Suppression impossible : des mouvements existent pour cet article' });
+    return res.status(409).json({ erreur: 'Suppression impossible : des mouvements existent. Archive l’article.' });
 
   const r = db.prepare('DELETE FROM article WHERE code_barre = ?').run(req.params.code);
   if (r.changes === 0) return res.status(404).json({ erreur: 'Article inconnu' });
   res.json({ ok: true });
+});
+
+
+app.patch('/api/admin/articles/:code/archivage', exigerAdmin, (req, res) => {
+  const { actif } = req.body;
+  if (typeof actif !== 'boolean') return res.status(400).json({ erreur: 'Statut invalide' });
+
+  const code = req.params.code;
+  const article = db.prepare('SELECT actif FROM article WHERE code_barre = ?').get(code);
+  if (!article) return res.status(404).json({ erreur: 'Article inconnu' });
+
+  if (!actif) {
+    const { total } = db.prepare(SQL_TOTAL).get(code);
+    if (total !== 0)
+      return res.status(409).json({
+        erreur: `Archivage impossible : stock non nul (${total} kg). Passe-le à zéro par un mouvement correctif.`,
+      });
+  }
+
+  db.prepare('UPDATE article SET actif = ? WHERE code_barre = ?').run(actif ? 1 : 0, code);
+  res.json({ ok: true });
+});
+
+// --- Admin : suppression définitive d'un article ET de son historique ---
+const supprimerDefinitivement = db.transaction((code, userId) => {
+  const article = db.prepare('SELECT nom FROM article WHERE code_barre = ?').get(code);
+  if (!article) return null;
+
+  const { n, total } = db.prepare(
+    'SELECT COUNT(*) AS n, COALESCE(SUM(quantite), 0) AS total FROM mouvement WHERE code_barre = ?'
+  ).get(code);
+
+  db.prepare(
+    `INSERT INTO journal_suppression (code_barre, nom, mouvements, stock, utilisateur_id)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run(code, article.nom, n, total, userId);
+
+  db.prepare('DELETE FROM mouvement WHERE code_barre = ?').run(code);
+  db.prepare('DELETE FROM article WHERE code_barre = ?').run(code);
+  return { mouvements: n, stock: total };
+});
+
+app.post('/api/admin/articles/:code/suppression-definitive', exigerAdmin, (req, res) => {
+  const code = req.params.code;
+  if (normaliserCode(req.body.confirmation) !== code)
+    return res.status(400).json({ erreur: 'Confirmation incorrecte : saisis le code-barre exact' });
+
+  try {
+    const r = supprimerDefinitivement(code, req.session.user.id);
+    if (!r) return res.status(404).json({ erreur: 'Article inconnu' });
+    res.json({ ok: true, ...r });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
 });
 
 // --- Admin : historique des mouvements (filtres + pagination) ---

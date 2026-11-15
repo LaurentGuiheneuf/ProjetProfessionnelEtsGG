@@ -1,17 +1,27 @@
 const $ = (id) => document.getElementById(id);
-let scanner = null;
+
+// Moteur de lecture (ZXing-C++ en WebAssembly), fichier .wasm hébergé localement
+const API = window.BarcodeDetectionAPI;
+let detecteur = null;
+if (API) {
+  API.prepareZXingModule({
+    overrides: {
+      locateFile: (path, prefix) =>
+        path.endsWith('.wasm') ? '/vendor/zxing_reader.wasm' : prefix + path,
+    },
+  });
+  detecteur = new API.BarcodeDetector({
+    formats: ['code_128', 'ean_13', 'ean_8', 'upc_a'],
+  });
+}
+
+let flux = null;
+let minuteur = null;
+let enAnalyse = false;
 let codeCourant = null;
 let enCours = false;
 let dernierRejet = '';
-
 let role = null;
-
-async function lireRole() {
-  try {
-    role = (await api('/api/me')).role;
-    $('nav-admin').hidden = role !== 'admin';
-  } catch (_) { /* non connecté : redirigé par api() */ }
-}
 
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
@@ -30,12 +40,18 @@ async function api(url, options) {
   return donnees;
 }
 
-// Contrôle GS1 : 8, 12 ou 13 chiffres + chiffre de clé
+async function lireRole() {
+  try {
+    role = (await api('/api/me')).role;
+    $('nav-admin').hidden = role !== 'admin';
+  } catch (_) { /* non connecté : redirigé par api() */ }
+}
+
 // --- Codes-barres : format fabricant (Code 128) ou EAN (8/12/13 chiffres) ---
 const FORMAT_FABRICANT = /^\d{7}[A-Z]{2}\d{5}[A-Z]{2}36\d{5}$/;
 
 function normaliserCode(brut) {
-  return String(brut ?? '').trim().toUpperCase().replace(/^\$/, '').replace(/\s+/g, '');
+  return String(brut ?? '').trim().toUpperCase().replace(/^[#$]/, '').replace(/\s+/g, '');
 }
 
 function codeEanValide(code) {
@@ -52,91 +68,148 @@ function codeValide(code) {
   return FORMAT_FABRICANT.test(code) || codeEanValide(code);
 }
 
-// --- Choix de la caméra ---
+// --- Caméra ---
+function memoCamera() {
+  try { return localStorage.getItem('cameraId') || ''; } catch (_) { return ''; }
+}
+
+function sauverCamera(id) {
+  try { localStorage.setItem('cameraId', id); } catch (_) {}
+}
+
+function oublierCamera() {
+  try { localStorage.removeItem('cameraId'); } catch (_) {}
+}
+
+async function ouvrirCamera(deviceId) {
+  const video = { width: { ideal: 1920 }, height: { ideal: 1080 } };
+  if (deviceId) video.deviceId = { exact: deviceId };
+  else video.facingMode = 'environment';
+
+  flux = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+  const piste = flux.getVideoTracks()[0];
+  try {
+    await piste.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+  } catch (_) { /* mise au point continue non disponible : ignoré */ }
+
+  $('lecteur').srcObject = flux;
+  await $('lecteur').play();
+}
+
 async function listerCameras() {
-  const cameras = await Html5Qrcode.getCameras(); // demande l'autorisation
+  const peripheriques = await navigator.mediaDevices.enumerateDevices();
+  const cameras = peripheriques.filter((d) => d.kind === 'videoinput');
   if (!cameras.length) throw new Error('Aucune caméra détectée');
 
   $('choix-camera').replaceChildren(
-    ...cameras.map((c) => {
+    ...cameras.map((c, i) => {
       const o = document.createElement('option');
-      o.value = c.id;
-      o.textContent = c.label || c.id;
+      o.value = c.deviceId;
+      o.textContent = c.label || `Caméra ${i + 1}`;
       return o;
     })
   );
-
-  try {
-    const memo = localStorage.getItem('cameraId');
-    if (memo && cameras.some((c) => c.id === memo)) $('choix-camera').value = memo;
-  } catch (_) { /* stockage indisponible : ignoré */ }
 }
 
-// --- Scan ---
+function arreterScan() {
+  clearInterval(minuteur);
+  minuteur = null;
+  if (flux) {
+    flux.getTracks().forEach((t) => t.stop());
+    flux = null;
+  }
+  $('lecteur').srcObject = null;
+}
+
+function boucleAnalyse() {
+  clearInterval(minuteur);
+  let images = 0;
+  let erreurAffichee = false;
+
+  minuteur = setInterval(async () => {
+    const video = $('lecteur');
+    if (enAnalyse || enCours || video.readyState < 2) return;
+    enAnalyse = true;
+    try {
+      const resultats = await detecteur.detect(video);
+      images++;
+
+      if (!resultats.length) {
+        if (images % 20 === 0) {
+          $('etat-camera').textContent = `Analyse en cours… (${images} images sans code)`;
+        }
+        return;
+      }
+
+      for (const r of resultats) {
+        const code = normaliserCode(r.rawValue);
+        if (codeValide(code)) {
+          chargerArticle(code);
+          return;
+        }
+        if (code !== dernierRejet) {
+          dernierRejet = code;
+          const detail = `${r.format}, ${r.rawValue.length} caractères : ${JSON.stringify(r.rawValue)}`;
+          console.log('Lecture rejetée :', detail, [...r.rawValue].map((c) => c.charCodeAt(0)));
+          afficherMessage(`Lecture invalide (${detail})`, true);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      if (!erreurAffichee) {
+        erreurAffichee = true;
+        $('etat-camera').textContent =
+          'Moteur de lecture indisponible (voir la console F12). Utilise la saisie manuelle.';
+      }
+    } finally {
+      enAnalyse = false;
+    }
+  }, 120);
+}
+
 async function demarrerScan() {
   $('fiche').hidden = true;
   $('zone-scan').hidden = false;
+  $('creation').hidden = true;
+  $('btn-reprise').hidden = true;
   $('etat-camera').textContent = 'Démarrage de la caméra…';
 
-  if (!scanner) {
-    scanner = new Html5Qrcode('lecteur', {
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.UPC_A,
-      ],
-      useBarCodeDetectorIfSupported: true,
-    });
+  if (!detecteur) {
+    $('etat-camera').textContent =
+      'Moteur de lecture non chargé (fichier /vendor/ponyfill.min.js introuvable). Utilise la saisie manuelle.';
+    return;
   }
 
   try {
-    if (!$('choix-camera').options.length) await listerCameras();
-    const cameraId = $('choix-camera').value;
-    try { localStorage.setItem('cameraId', cameraId); } catch (_) {}
+    arreterScan();
+    await ouvrirCamera($('choix-camera').value || memoCamera());
+    await listerCameras(); // les noms des caméras sont disponibles après l'autorisation
 
-    let imagesSansCode = 0;
-    await scanner.start(
-      cameraId,
-      { fps: 10 }, // pas de qrbox : image entière analysée
-      (brut) => {
-      const code = normaliserCode(brut);
-      if (!codeValide(code)) {
-        if (code !== dernierRejet) {
-          dernierRejet = code;
-          afficherMessage(`Lecture invalide : ${brut}`, true);
-        }
-        return; // la caméra continue de scanner
-      }
-      chargerArticle(code);
-      },
-      () => {
-        imagesSansCode++;
-        if (imagesSansCode % 20 === 0) {
-          $('etat-camera').textContent =
-            `Analyse en cours… (${imagesSansCode} images sans code)`;
-        }
-      }
-    );
+    const actuel = flux.getVideoTracks()[0].getSettings().deviceId;
+    if (actuel && [...$('choix-camera').options].some((o) => o.value === actuel)) {
+      $('choix-camera').value = actuel;
+      sauverCamera(actuel);
+    }
+
+    boucleAnalyse();
     $('etat-camera').textContent = 'Place le code-barre dans le cadre.';
   } catch (e) {
     console.error(e);
+    arreterScan();
     $('etat-camera').textContent =
       'Caméra indisponible : ' + e + ' — choisis une autre caméra ou clique sur « Actualiser ».';
-    try { localStorage.removeItem('cameraId'); } catch (_) {}
+    oublierCamera();
   }
 }
 
-async function arreterScan() {
-  if (scanner && scanner.isScanning) await scanner.stop();
-}
-
+// --- Fiche article ---
 async function chargerArticle(code) {
   if (enCours) return;
   enCours = true;
   $('creation').hidden = true;
+  $('btn-reprise').hidden = true;
   try {
-    await arreterScan();
+    arreterScan();
     const a = await api('/api/articles/' + encodeURIComponent(code));
     codeCourant = a.code_barre;
     $('f-nom').textContent = a.nom;
@@ -152,14 +225,22 @@ async function chargerArticle(code) {
     afficherMessage('');
   } catch (e) {
     afficherMessage(`${e.message} (code lu : ${code})`, true);
-    if (e.message === 'Article inconnu' && role === 'admin') {
-    $('lien-creation').href = '/admin?code=' + encodeURIComponent(code);
-    $('creation').hidden = false;
-  }
-    await demarrerScan();
-  } finally {
     enCours = false;
+
+    if (e.message === 'Article inconnu' || e.message === 'Article archivé') {
+      // Scan arrêté : on évite de relire le même code en boucle
+      $('etat-camera').textContent = 'Scan arrêté.';
+      $('btn-reprise').hidden = false;
+      if (e.message === 'Article inconnu' && role === 'admin') {
+        $('lien-creation').href = '/admin?code=' + encodeURIComponent(code);
+        $('creation').hidden = false;
+      }
+      return;
+    }
+    await demarrerScan(); // autre erreur (réseau, serveur) : on relance la caméra
+    return;
   }
+  enCours = false;
 }
 
 async function envoyerMouvement(signe) {
@@ -181,19 +262,14 @@ async function envoyerMouvement(signe) {
 }
 
 // --- Événements ---
-$('choix-camera').addEventListener('change', async () => {
-  await arreterScan();
+$('choix-camera').addEventListener('change', () => {
+  sauverCamera($('choix-camera').value);
   demarrerScan();
 });
 
-$('actualiser-cameras').addEventListener('click', async () => {
-  await arreterScan();
-  try {
-    await listerCameras();
-    await demarrerScan();
-  } catch (e) {
-    $('etat-camera').textContent = 'Caméra indisponible : ' + e;
-  }
+$('actualiser-cameras').addEventListener('click', () => {
+  $('choix-camera').replaceChildren();
+  demarrerScan();
 });
 
 $('btn-ajout').addEventListener('click', () => envoyerMouvement(+1));
@@ -211,9 +287,15 @@ $('saisie-manuelle').addEventListener('submit', (e) => {
 });
 
 $('deconnexion').addEventListener('click', async () => {
-  await arreterScan();
+  arreterScan();
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/';
+});
+
+$('btn-reprise').addEventListener('click', () => {
+  afficherMessage('');
+  dernierRejet = '';
+  demarrerScan();
 });
 
 lireRole();

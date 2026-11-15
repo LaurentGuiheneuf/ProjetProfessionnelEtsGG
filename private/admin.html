@@ -21,46 +21,46 @@
     </header>
 
     <main>
-        <section id="section-article">
-            <h2 id="titre-form">Ajouter un article</h2>
+        <details id="section-article">
+            <summary id="titre-form">Ajouter un article</summary>
             <form id="form-article">
-                <label for="a-code">Code-barre
-                    <input type="text" id="a-code" name="code_barre" maxlength="30" required autocomplete="off" autocapitalize="characters">
-                </label>
-                <p id="aide-code" role="status"></p>
-                <label for="a-nom">Nom
-                    <input type="text" id="a-nom" name="nom" maxlength="100" required list="l-nom">
-                </label>
-                <label for="a-couleur">Couleur
-                    <input type="text" id="a-couleur" name="couleur" maxlength="100" required list="l-couleur">
-                </label>
-                <label for="a-finition">Finition
-                    <input type="text" id="a-finition" name="finition" maxlength="100" required list="l-finition">
-                </label>
-                <label for="a-texture">Texture
-                    <input type="text" id="a-texture" name="texture" maxlength="100" required list="l-texture">
-                </label>
-                <label for="a-fabricant">Fabricant
-                    <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required list="l-fabricant">
-                </label>
-                <label for="a-prix">Prix unitaire (€)
-                    <input type="text" id="a-prix" name="prix" inputmode="decimal"
-                        pattern="\d{1,7}([.,]\d{1,2})?" placeholder="ex. 12,50">
-                </label>
-                <datalist id="l-nom"></datalist>
-                <datalist id="l-couleur"></datalist>
-                <datalist id="l-finition"></datalist>
-                <datalist id="l-fabricant"></datalist>
-                <datalist id="l-texture"></datalist>
-                <label for="a-stock" id="label-stock">Stock initial
-                    <input type="number" id="a-stock" name="stock_initial" min="0" step="1" value="0">
-                </label>
-                <div class="actions">
-                    <button type="submit" id="btn-enregistrer">Ajouter</button>
-                    <button type="button" id="btn-annuler" hidden>Annuler la modification</button>
-                </div>
+            <label for="a-code">Code-barre
+                <input type="text" id="a-code" name="code_barre" maxlength="30" required autocomplete="off" autocapitalize="characters">
+            </label>
+            <p id="aide-code" role="status"></p>
+            <label for="a-nom">Nom
+                <input type="text" id="a-nom" name="nom" maxlength="100" required list="l-nom">
+            </label>
+            <label for="a-couleur">Couleur
+                <input type="text" id="a-couleur" name="couleur" maxlength="100" required list="l-couleur">
+            </label>
+            <label for="a-finition">Finition
+                <input type="text" id="a-finition" name="finition" maxlength="100" required list="l-finition">
+            </label>
+            <label for="a-texture">Texture
+                <input type="text" id="a-texture" name="texture" maxlength="100" required list="l-texture">
+            </label>
+            <label for="a-fabricant">Fabricant
+                <input type="text" id="a-fabricant" name="fabricant" maxlength="100" required list="l-fabricant">
+            </label>
+            <label for="a-prix">Prix unitaire (€)
+                <input type="text" id="a-prix" name="prix" inputmode="decimal"
+                    pattern="\d{1,7}([.,]\d{1,2})?" placeholder="ex. 12,50">
+            </label>
+            <datalist id="l-nom"></datalist>
+            <datalist id="l-couleur"></datalist>
+            <datalist id="l-finition"></datalist>
+            <datalist id="l-fabricant"></datalist>
+            <datalist id="l-texture"></datalist>
+            <label for="a-stock" id="label-stock">Stock initial
+                <input type="number" id="a-stock" name="stock_initial" min="0" step="1" value="0">
+            </label>
+            <div class="actions">
+                <button type="submit" id="btn-enregistrer">Ajouter</button>
+                <button type="button" id="btn-annuler" hidden>Annuler la modification</button>
+            </div>
             </form>
-        </section>
+        </details>
 
         <p id="message" role="alert"></p>
 
@@ -72,6 +72,12 @@
                 <label>Finition <input type="search" data-filtre="finition"></label>
                 <label>Texture <input type="search" data-filtre="texture"></label>
                 <label>Fabricant <input type="search" data-filtre="fabricant"></label>
+                <label>Statut
+                    <select data-filtre="statut">
+                        <option value="">Articles actifs</option>
+                        <option value="archives">Articles archivés</option>
+                    </select>
+                </label>
                 <button type="reset" id="raz">Réinitialiser</button>
             </form>
 
