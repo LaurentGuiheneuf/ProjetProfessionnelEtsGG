@@ -45,7 +45,7 @@ async function chargerSuggestions() {
         })
       );
     }
-  } catch (_) { /* suggestions facultatives */ }
+  } catch { /* suggestions facultatives */ }
 }
 
 // --- Préremplissage à partir du code-barre ---
@@ -85,7 +85,7 @@ async function preremplir(brut) {
         rempli.push('fabricant (base externe)');
       }
     }
-  } catch (_) { /* code invalide ou service indisponible : saisie manuelle */ }
+  } catch { /* code invalide ou service indisponible : saisie manuelle */ }
 
   if (jeton !== jetonAuto) return;
   $('aide-code').textContent = rempli.length

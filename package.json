@@ -7,5 +7,10 @@
     "express-rate-limit": "^8.7.2",
     "express-session": "^1.19.0",
     "helmet": "^8.3.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0"
   }
 }

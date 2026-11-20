@@ -44,7 +44,7 @@ async function lireRole() {
   try {
     role = (await api('/api/me')).role;
     $('nav-admin').hidden = role !== 'admin';
-  } catch (_) { /* non connecté : redirigé par api() */ }
+  } catch { /* non connecté : redirigé par api() */ }
 }
 
 // --- Codes-barres : format fabricant (Code 128) ou EAN (8/12/13 chiffres) ---
@@ -70,15 +70,15 @@ function codeValide(code) {
 
 // --- Caméra ---
 function memoCamera() {
-  try { return localStorage.getItem('cameraId') || ''; } catch (_) { return ''; }
+  try { return localStorage.getItem('cameraId') || ''; } catch { return ''; }
 }
 
 function sauverCamera(id) {
-  try { localStorage.setItem('cameraId', id); } catch (_) {}
+  try { localStorage.setItem('cameraId', id); } catch { /* stockage indisponible : ignoré */ }
 }
 
 function oublierCamera() {
-  try { localStorage.removeItem('cameraId'); } catch (_) {}
+  try { localStorage.removeItem('cameraId'); } catch { /* stockage indisponible : ignoré */ }
 }
 
 async function ouvrirCamera(deviceId) {
@@ -90,7 +90,7 @@ async function ouvrirCamera(deviceId) {
   const piste = flux.getVideoTracks()[0];
   try {
     await piste.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-  } catch (_) { /* mise au point continue non disponible : ignoré */ }
+  } catch { /* mise au point continue non disponible : ignoré */ }
 
   $('lecteur').srcObject = flux;
   await $('lecteur').play();
