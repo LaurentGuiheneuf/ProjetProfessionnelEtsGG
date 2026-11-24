@@ -1,7 +1,0 @@
-/*Instruction à metter dans le terminal powershell pour lancer le serveur */
-$env:SESSION_SECRET="chaine-aleatoire-longue"; node server.js
-
-
-/* Identifiants et mdp de test et mdp */
-admin_test      Admin1234!
-user_test       User1234!
