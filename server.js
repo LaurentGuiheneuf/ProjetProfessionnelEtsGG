@@ -218,6 +218,61 @@ function lireArticle(body) {
   return a;
 }
 
+// --- Suggestions de saisie (comptes connectés, sans prix) ---
+app.get('/api/suggestions', exigerConnexion, (req, res) => {
+  const liste = (col) =>
+    db.prepare(
+      `SELECT DISTINCT ${col} AS v FROM article WHERE actif = 1 AND ${col} <> '' ORDER BY v COLLATE NOCASE`
+    ).all().map((r) => r.v);
+  res.json({
+    nom: liste('nom'),
+    couleur: liste('couleur'),
+    finition: liste('finition'),
+    texture: liste('texture'),
+    fabricant: liste('fabricant'),
+  });
+});
+
+// --- Création d'un article par un utilisateur (code inconnu au scan) ---
+const limiteurCreation = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { erreur: 'Trop de créations d\u2019articles. Réessaie plus tard.' },
+});
+
+app.post('/api/articles', exigerConnexion, limiteurCreation, (req, res) => {
+  const code = normaliserCode(req.body.code_barre);
+  const a = lireArticle(req.body);
+
+  if (!codeValide(code))
+    return res.status(400).json({ erreur: 'Code-barre invalide (format fabricant, ou EAN à clé correcte)' });
+  if (!a)
+    return res.status(400).json({ erreur: 'Champs manquants ou trop longs (100 caractères max)' });
+
+  const existant = db.prepare('SELECT actif FROM article WHERE code_barre = ?').get(code);
+  if (existant)
+    return res.status(409).json({
+      erreur: existant.actif
+        ? 'Cet article existe déjà'
+        : 'Cet article est archivé : demande à un administrateur de le restaurer',
+    });
+
+  try {
+    const estAdmin = req.session.user.role === 'admin';
+    db.prepare(
+      `INSERT INTO article (code_barre, nom, couleur, finition, texture, fabricant, a_verifier, cree_par)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(code, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
+          estAdmin ? 0 : 1, req.session.user.id);
+    res.status(201).json({ ok: true, code_barre: code });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ erreur: 'Erreur serveur' });
+  }
+});
+
 function lirePrix(valeur) {
   if (valeur === undefined || valeur === null || String(valeur).trim() === '')
     return { ok: true, centimes: null };
@@ -243,20 +298,22 @@ app.get('/api/admin/inventaire', exigerAdmin, (req, res) => {
   const ordre = req.query.ordre === 'desc' ? 'DESC' : 'ASC';
   const filtre = (cle) => `%${req.query[cle] ?? ''}%`;
   const actif = req.query.statut === 'archives' ? 0 : 1;
+  const aVerifier = req.query.statut === 'verifier' ? 1 : 0;
 
   const lignes = db.prepare(`
     SELECT a.code_barre, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
-           a.prix_centimes, a.actif,
+           a.prix_centimes, a.actif, a.a_verifier,
            COALESCE(SUM(m.quantite), 0) AS quantite,
            COUNT(m.id) AS mouvements,
            COALESCE(SUM(m.quantite), 0) * COALESCE(a.prix_centimes, 0) AS valeur_centimes
     FROM article a
     LEFT JOIN mouvement m ON m.code_barre = a.code_barre
-    WHERE a.actif = ? AND a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
+    WHERE a.actif = ? AND (? = 0 OR a.a_verifier = 1)
+      AND a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
       AND a.texture LIKE ? AND a.fabricant LIKE ?
     GROUP BY a.code_barre
     ORDER BY ${colonne} ${ordre}
-  `).all(actif, filtre('nom'), filtre('couleur'), filtre('finition'),
+  `).all(actif, aVerifier, filtre('nom'), filtre('couleur'), filtre('finition'),
          filtre('texture'), filtre('fabricant'));
 
   res.json(lignes);
@@ -306,16 +363,17 @@ app.post('/api/admin/articles', exigerAdmin, (req, res) => {
     res.status(500).json({ erreur: 'Erreur serveur' });
   }
 });
+
 // --- Admin : modifier un article (le code-barre ne change pas) ---
 app.put('/api/admin/articles/:code', exigerAdmin, (req, res) => {
   const a = lireArticle(req.body);
   if (!a) return res.status(400).json({ erreur: 'Champs manquants ou trop longs (100 caractères max)' });
   const prix = lirePrix(req.body.prix);
-  if (!prix.ok) return res.status(400).json({ erreur: 'Prix invalide (ex. 12,50)' });
+  if (!prix.ok) return res.status(400).json({ erreur: 'Prix au kg invalide (ex. 12,50)' });
 
   const r = db.prepare(
     `UPDATE article SET nom = ?, couleur = ?, finition = ?, texture = ?, fabricant = ?,
-                        prix_centimes = ?
+                        prix_centimes = ?, a_verifier = 0
      WHERE code_barre = ?`
   ).run(a.nom, a.couleur, a.finition, a.texture, a.fabricant, prix.centimes, req.params.code);
 

@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="/assets/css/style.css">
-
     <title>Scan - Stock Peinture</title>
 </head>
 <body>
@@ -16,7 +15,7 @@
         <nav id="nav-admin" hidden>
             <a href="/admin">Espace administrateur</a>
         </nav>
-        <button type="button" id="deconnexion">Déconnexion</button> 
+        <button type="button" id="deconnexion">Déconnexion</button>
     </header>
 
     <main>
@@ -35,6 +34,45 @@
             </form>
         </section>
 
+        <p id="creation" hidden>
+            <a id="lien-creation" href="#">Saisir avec prix et stock (administration)</a>
+        </p>
+        <button type="button" id="btn-reprise" hidden>Scanner à nouveau</button>
+
+        <section id="creation-article" hidden>
+            <h2>Nouvel article</h2>
+            <p>Ce code n'existe pas encore. Compare-le à l'étiquette, puis renseigne l'article. Un administrateur contrôlera la fiche.</p>
+            <form id="form-creation" class="form-grille">
+                <label for="n-code">Code-barre
+                    <input type="text" id="n-code" name="code_barre" readonly>
+                </label>
+                <label for="n-nom">Nom
+                    <input type="text" id="n-nom" name="nom" maxlength="100" required list="ls-nom">
+                </label>
+                <label for="n-couleur">Couleur
+                    <input type="text" id="n-couleur" name="couleur" maxlength="100" required list="ls-couleur">
+                </label>
+                <label for="n-finition">Finition
+                    <input type="text" id="n-finition" name="finition" maxlength="100" required list="ls-finition">
+                </label>
+                <label for="n-texture">Texture
+                    <input type="text" id="n-texture" name="texture" maxlength="100" required list="ls-texture">
+                </label>
+                <label for="n-fabricant">Fabricant
+                    <input type="text" id="n-fabricant" name="fabricant" maxlength="100" required list="ls-fabricant">
+                </label>
+                <datalist id="ls-nom"></datalist>
+                <datalist id="ls-couleur"></datalist>
+                <datalist id="ls-finition"></datalist>
+                <datalist id="ls-texture"></datalist>
+                <datalist id="ls-fabricant"></datalist>
+                <div class="actions">
+                    <button type="submit">Créer et continuer</button>
+                    <button type="button" id="n-annuler">Annuler</button>
+                </div>
+            </form>
+        </section>
+
         <section id="fiche" hidden>
             <h2 id="f-nom"></h2>
             <dl>
@@ -43,10 +81,10 @@
                 <dt>Texture</dt><dd id="f-texture"></dd>
                 <dt>Fabricant</dt><dd id="f-fabricant"></dd>
                 <dt>Code-barre</dt><dd id="f-code"></dd>
-                <dt>Stock actuel</dt><dd id="f-stock"></dd>
+                <dt>Stock actuel (kg)</dt><dd id="f-stock"></dd>
             </dl>
 
-            <label for="quantite">Quantité :</label>
+            <label for="quantite">Quantité (kg) :</label>
             <input type="number" id="quantite" min="1" step="1" value="1" inputmode="numeric">
 
             <div class="actions">
@@ -57,9 +95,6 @@
         </section>
 
         <p id="message" role="alert"></p>
-        <p id="creation" hidden><a id="lien-creation" href="#">Créer cet article (administrateur)</a></p>
-        <button type="button" id="btn-reprise" hidden>Scanner à nouveau</button>
-        
     </main>
 
     <script src="/vendor/ponyfill.js"></script>

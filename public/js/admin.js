@@ -260,15 +260,23 @@ async function supprimerDefinitivement(a) {
 
 function creerLigne(a) {
   const tr = document.createElement('tr');
- [
-  a.nom, a.couleur, a.finition, a.texture, a.fabricant, a.code_barre, a.quantite,
-  a.prix_centimes === null ? 'Non renseigné' : enEuros(a.prix_centimes),
-  a.prix_centimes === null ? '—' : enEuros(a.valeur_centimes),
-].forEach((v) => {
+
+  [
+    a.a_verifier ? `${a.nom} (à vérifier)` : a.nom,
+    a.couleur,
+    a.finition,
+    a.texture,
+    a.fabricant,
+    a.code_barre,
+    `${a.quantite} kg`,
+    a.prix_centimes === null ? 'Non renseigné' : `${enEuros(a.prix_centimes)}/kg`,
+    a.prix_centimes === null ? '—' : enEuros(a.valeur_centimes),
+  ].forEach((v) => {
     const td = document.createElement('td');
     td.textContent = v;
     tr.appendChild(td);
   });
+
   const actions = document.createElement('td');
   if (a.actif) {
     actions.append(
@@ -287,6 +295,7 @@ function creerLigne(a) {
     );
   }
   tr.appendChild(actions);
+
   return tr;
 }
 

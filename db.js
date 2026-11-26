@@ -69,3 +69,10 @@ CREATE TABLE IF NOT EXISTS journal_suppression (
   utilisateur_id INTEGER NOT NULL REFERENCES utilisateur(id)
 );
 `);
+
+if (!colonnesArticle.includes('a_verifier')) {
+  db.exec('ALTER TABLE article ADD COLUMN a_verifier INTEGER NOT NULL DEFAULT 0');
+}
+if (!colonnesArticle.includes('cree_par')) {
+  db.exec('ALTER TABLE article ADD COLUMN cree_par INTEGER');
+}

@@ -1,4 +1,9 @@
-const $ = (id) => document.getElementById(id);
+// Un id absent de la page est signalé clairement dans la console
+const $ = (id) => {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`Élément #${id} absent de scan.html`);
+  return el;
+};
 
 // Moteur de lecture (ZXing-C++ en WebAssembly), fichier .wasm hébergé localement
 const API = window.BarcodeDetectionAPI;
@@ -22,6 +27,7 @@ let codeCourant = null;
 let enCours = false;
 let dernierRejet = '';
 let role = null;
+let suggestionsChargees = false;
 
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
@@ -44,7 +50,7 @@ async function lireRole() {
   try {
     role = (await api('/api/me')).role;
     $('nav-admin').hidden = role !== 'admin';
-  } catch { /* non connecté : redirigé par api() */ }
+  } catch (_) { /* non connecté : redirigé par api() */ }
 }
 
 // --- Codes-barres : format fabricant (Code 128) ou EAN (8/12/13 chiffres) ---
@@ -70,15 +76,13 @@ function codeValide(code) {
 
 // --- Caméra ---
 function memoCamera() {
-  try { return localStorage.getItem('cameraId') || ''; } catch { return ''; }
+  try { return localStorage.getItem('cameraId') || ''; } catch (_) { return ''; }
 }
-
 function sauverCamera(id) {
-  try { localStorage.setItem('cameraId', id); } catch { /* stockage indisponible : ignoré */ }
+  try { localStorage.setItem('cameraId', id); } catch (_) {}
 }
-
 function oublierCamera() {
-  try { localStorage.removeItem('cameraId'); } catch { /* stockage indisponible : ignoré */ }
+  try { localStorage.removeItem('cameraId'); } catch (_) {}
 }
 
 async function ouvrirCamera(deviceId) {
@@ -90,7 +94,7 @@ async function ouvrirCamera(deviceId) {
   const piste = flux.getVideoTracks()[0];
   try {
     await piste.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
-  } catch { /* mise au point continue non disponible : ignoré */ }
+  } catch (_) { /* mise au point continue non disponible : ignoré */ }
 
   $('lecteur').srcObject = flux;
   await $('lecteur').play();
@@ -150,7 +154,7 @@ function boucleAnalyse() {
         if (code !== dernierRejet) {
           dernierRejet = code;
           const detail = `${r.format}, ${r.rawValue.length} caractères : ${JSON.stringify(r.rawValue)}`;
-          console.log('Lecture rejetée :', detail, [...r.rawValue].map((c) => c.charCodeAt(0)));
+          console.log('Lecture rejetée :', detail);
           afficherMessage(`Lecture invalide (${detail})`, true);
         }
       }
@@ -172,11 +176,12 @@ async function demarrerScan() {
   $('zone-scan').hidden = false;
   $('creation').hidden = true;
   $('btn-reprise').hidden = true;
+  $('creation-article').hidden = true;
   $('etat-camera').textContent = 'Démarrage de la caméra…';
 
   if (!detecteur) {
     $('etat-camera').textContent =
-      'Moteur de lecture non chargé (fichier /vendor/ponyfill.min.js introuvable). Utilise la saisie manuelle.';
+      'Moteur de lecture non chargé (fichier /vendor/ponyfill.js introuvable). Utilise la saisie manuelle.';
     return;
   }
 
@@ -202,12 +207,43 @@ async function demarrerScan() {
   }
 }
 
+// --- Création d'un article inconnu ---
+async function chargerSuggestions() {
+  if (suggestionsChargees) return;
+  try {
+    const s = await api('/api/suggestions');
+    for (const cle of ['nom', 'couleur', 'finition', 'texture', 'fabricant']) {
+      $('ls-' + cle).replaceChildren(
+        ...s[cle].map((v) => {
+          const o = document.createElement('option');
+          o.value = v;
+          return o;
+        })
+      );
+    }
+    suggestionsChargees = true;
+  } catch (_) { /* suggestions facultatives */ }
+}
+
+function proposerCreation(code) {
+  arreterScan();
+  $('zone-scan').hidden = true;
+  $('fiche').hidden = true;
+  $('form-creation').reset();
+  $('n-code').value = code; // après reset, sinon le champ est vidé
+  $('creation-article').hidden = false;
+  $('creation-article').scrollIntoView({ behavior: 'smooth' });
+  $('n-nom').focus();
+  chargerSuggestions();
+}
+
 // --- Fiche article ---
 async function chargerArticle(code) {
   if (enCours) return;
   enCours = true;
   $('creation').hidden = true;
   $('btn-reprise').hidden = true;
+  $('creation-article').hidden = true;
   try {
     arreterScan();
     const a = await api('/api/articles/' + encodeURIComponent(code));
@@ -227,14 +263,17 @@ async function chargerArticle(code) {
     afficherMessage(`${e.message} (code lu : ${code})`, true);
     enCours = false;
 
-    if (e.message === 'Article inconnu' || e.message === 'Article archivé') {
-      // Scan arrêté : on évite de relire le même code en boucle
-      $('etat-camera').textContent = 'Scan arrêté.';
-      $('btn-reprise').hidden = false;
-      if (e.message === 'Article inconnu' && role === 'admin') {
+    if (e.message === 'Article inconnu') {
+      proposerCreation(code);
+      if (role === 'admin') {
         $('lien-creation').href = '/admin?code=' + encodeURIComponent(code);
         $('creation').hidden = false;
       }
+      return;
+    }
+    if (e.message === 'Article archivé') {
+      $('etat-camera').textContent = 'Scan arrêté.';
+      $('btn-reprise').hidden = false;
       return;
     }
     await demarrerScan(); // autre erreur (réseau, serveur) : on relance la caméra
@@ -274,7 +313,14 @@ $('actualiser-cameras').addEventListener('click', () => {
 
 $('btn-ajout').addEventListener('click', () => envoyerMouvement(+1));
 $('btn-retrait').addEventListener('click', () => envoyerMouvement(-1));
+
 $('btn-autre').addEventListener('click', () => {
+  afficherMessage('');
+  dernierRejet = '';
+  demarrerScan();
+});
+
+$('btn-reprise').addEventListener('click', () => {
   afficherMessage('');
   dernierRejet = '';
   demarrerScan();
@@ -283,19 +329,43 @@ $('btn-autre').addEventListener('click', () => {
 $('saisie-manuelle').addEventListener('submit', (e) => {
   e.preventDefault();
   const code = normaliserCode($('code-manuel').value);
-  if (code) chargerArticle(code);
+  if (!code) return;
+  if (!codeValide(code)) {
+    return afficherMessage('Code invalide : format fabricant ou EAN à clé correcte attendu.', true);
+  }
+  chargerArticle(code);
+});
+
+$('form-creation').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const donnees = Object.fromEntries(new FormData(e.target));
+  try {
+    await api('/api/articles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(donnees),
+    });
+    $('creation-article').hidden = true;
+    $('creation').hidden = true;
+    await chargerArticle(donnees.code_barre);
+    afficherMessage('Article créé. Indique la quantité : un administrateur vérifiera la fiche.');
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
+});
+
+$('n-annuler').addEventListener('click', () => {
+  $('creation-article').hidden = true;
+  $('creation').hidden = true;
+  afficherMessage('');
+  dernierRejet = '';
+  demarrerScan();
 });
 
 $('deconnexion').addEventListener('click', async () => {
   arreterScan();
   await fetch('/api/logout', { method: 'POST' });
   window.location.href = '/';
-});
-
-$('btn-reprise').addEventListener('click', () => {
-  afficherMessage('');
-  dernierRejet = '';
-  demarrerScan();
 });
 
 lireRole();
