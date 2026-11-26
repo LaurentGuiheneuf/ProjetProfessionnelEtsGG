@@ -4,7 +4,8 @@ let idMdp = null; // utilisateur dont on réinitialise le mot de passe
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
-  m.className = erreur ? 'erreur' : 'succes';
+  m.className = texte ? `alert ${erreur ? 'alert-danger' : 'alert-success'} mt-3` : '';
+  if (texte) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 async function api(url, options) {
@@ -24,10 +25,11 @@ const json = (methode, corps) => ({
   body: JSON.stringify(corps),
 });
 
-function creerBouton(texte, action) {
+function creerBouton(texte, action, classe = 'btn-outline-secondary') {
   const b = document.createElement('button');
   b.type = 'button';
   b.textContent = texte;
+  b.className = `btn btn-sm ${classe}`;
   b.addEventListener('click', action);
   return b;
 }
@@ -59,7 +61,7 @@ function fermerMdp() {
 
 function creerLigne(u) {
   const tr = document.createElement('tr');
-  if (!u.actif) tr.className = 'ligne-inactive';
+  if (!u.actif) tr.className = 'table-secondary';
 
   [
     u.soi ? `${u.nom} (toi)` : u.nom,
@@ -72,21 +74,28 @@ function creerLigne(u) {
     tr.appendChild(td);
   });
 
-  const actions = document.createElement('td');
+  const groupe = document.createElement('div');
+  groupe.className = 'd-flex flex-wrap gap-1';
+
   if (!u.soi) {
     const nouveauRole = u.role === 'admin' ? 'utilisateur' : 'admin';
-    actions.append(
+    groupe.append(
       creerBouton(
         nouveauRole === 'admin' ? 'Passer admin' : 'Passer utilisateur',
-        () => modifier(u, { role: nouveauRole }, `Changer le rôle de « ${u.nom} » ?`)
+        () => modifier(u, { role: nouveauRole }, `Changer le rôle de « ${u.nom} » ?`),
+        'btn-outline-primary'
       ),
       creerBouton(
         u.actif ? 'Désactiver' : 'Réactiver',
-        () => modifier(u, { actif: !u.actif }, u.actif ? `Désactiver « ${u.nom} » ?` : null)
+        () => modifier(u, { actif: !u.actif }, u.actif ? `Désactiver « ${u.nom} » ?` : null),
+        u.actif ? 'btn-outline-warning' : 'btn-outline-success'
       )
     );
   }
-  actions.append(creerBouton('Mot de passe', () => ouvrirMdp(u)));
+  groupe.append(creerBouton('Mot de passe', () => ouvrirMdp(u), 'btn-outline-secondary'));
+
+  const actions = document.createElement('td');
+  actions.appendChild(groupe);
   tr.appendChild(actions);
   return tr;
 }

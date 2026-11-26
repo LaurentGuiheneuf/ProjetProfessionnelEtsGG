@@ -4,8 +4,10 @@ const etat = { page: 1, pages: 1 };
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
-  m.className = erreur ? 'erreur' : 'succes';
+  m.className = texte ? `alert ${erreur ? 'alert-danger' : 'alert-success'} mt-3` : '';
+  if (texte) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
 
 async function api(url, options) {
   const rep = await fetch(url, options);
@@ -35,7 +37,7 @@ function preparerContrePassation(m) {
 
 function creerLigne(m) {
   const tr = document.createElement('tr');
-  if (m.correctif) tr.className = 'ligne-correctif';
+  if (m.correctif) tr.className = 'table-warning';
 
   const libelle = `${m.nom} (${[m.couleur, m.finition, m.texture, m.fabricant].filter(Boolean).join(', ')})`;
   const quantite = (m.quantite > 0 ? '+' : '') + m.quantite;
@@ -48,6 +50,7 @@ function creerLigne(m) {
   const tdAction = document.createElement('td');
   const b = document.createElement('button');
   b.type = 'button';
+  b.className = 'btn btn-sm btn-outline-secondary';
   b.textContent = 'Contre-passer';
   b.addEventListener('click', () => preparerContrePassation(m));
   tdAction.appendChild(b);

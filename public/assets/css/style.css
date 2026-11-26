@@ -1,36 +1,23 @@
-/* règles du Box-sizing*/ 
-*, *::before, *::after{box-sizing: border-box;}
-
-:root{
-    --couleur1:#129768;
+/* ===== Variables ===== */
+:root {
+    --couleur1: #129768;
 }
-header{
+
+/* ===== Structure commune ===== */
+header {
     background-color: var(--couleur1);
     padding-top: 10px;
     padding-bottom: 10px;
     margin: 10px;
-    color:white
+    color: white;
 }
-h1,h2{
-    text-align: center;
-}
-fieldset{
-    text-align: center;
-    width: fit-content;
-    border: 3px solid black;
-    border-radius: 10px;
-    padding:30px;
-    margin:10px auto;
-}
-figure{
-    text-align: center;
-}
+h1, h2 { text-align: center; }
+main { padding: 10px; }
+img { max-width: 100%; height: auto; }
+figure { margin: 0; text-align: center; }
+[hidden] { display: none !important; }
 
-img {
-    max-width: 100%;
-    height: auto;
-}
-
+/* ===== Bannière ===== */
 #banniere img {
     display: block;
     width: 20%;
@@ -38,51 +25,53 @@ img {
     margin: 0 auto;
 }
 
-footer{
-    text-align: center;
-}
-[hidden] { display: none !important; }
-
-#lecteur { display: block; width: 100%; max-width: 480px; margin: 0 auto; background: #000; }
-
-main { padding: 10px; }
-
-button, input { font: inherit; padding: 8px 12px; }
-.actions { display: flex; gap: 10px; margin: 15px 0; }
-.actions button { flex: 1; padding: 14px; }
-
-.erreur { color: #b00020; font-weight: bold; }
-.succes { color: #0a6b3d; font-weight: bold; }
-
-#filtres { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
-
-.tableau-conteneur { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; }
-th, td { border: 1px solid #999; padding: 8px; text-align: left; }
-th button { background: none; border: 0; font-weight: bold; cursor: pointer; }
-th[aria-sort="ascending"] button::after { content: " ▲"; }
-th[aria-sort="descending"] button::after { content: " ▼"; }
-
-#form-article { display: grid; gap: 10px; max-width: 480px; }
-#form-article label { display: grid; gap: 4px; }
-#form-article input[readonly] { background: #eee; }
-td button { margin-right: 6px; }
-
-#form-correction { display: grid; gap: 10px; max-width: 480px; }
-#form-correction label { display: grid; gap: 4px; }
-.ligne-correctif { background: #fff4d6; }
-.pagination { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
-button:disabled { opacity: .5; cursor: not-allowed; }
+/* ===== Navigation du bandeau ===== */
 header nav { text-align: center; }
 header nav a { color: white; }
 
-.form-grille { display: grid; gap: 10px; max-width: 480px; }
-.form-grille label { display: grid; gap: 4px; }
-.ligne-inactive { color: #777; background: #eee; }
+/* ===== Page de connexion ===== */
+fieldset {
+    text-align: center;
+    width: fit-content;
+    border: 3px solid black;
+    border-radius: 10px;
+    padding: 30px;
+    margin: 10px auto;
+}
+fieldset legend {
+    float: none;
+    width: auto;
+    padding: 0 8px;
+    font-size: 1.25rem;
+}
 
+/* ===== Page de scan ===== */
+#lecteur {
+    display: block;
+    width: 100%;
+    max-width: 480px;
+    margin: 0 auto;
+    background: #000;
+}
+/* À retirer quand scan.html utilise d-flex gap-2 et btn */
+.actions { display: flex; gap: 10px; margin: 15px 0; }
+.actions button { flex: 1; padding: 14px; }
+
+/* ===== Tableaux triables (administration, historique) ===== */
+th button {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-weight: bold;
+    color: inherit;
+    cursor: pointer;
+}
+th[aria-sort="ascending"] button::after { content: " ▲"; }
+th[aria-sort="descending"] button::after { content: " ▼"; }
+
+/* ===== Divers ===== */
 #valorisation { font-weight: bold; }
-
-button.danger { background: #b00020; color: #fff; border: 1px solid #7a0016; }
+button:disabled { cursor: not-allowed; }
 
 #section-article > summary {
     cursor: pointer;

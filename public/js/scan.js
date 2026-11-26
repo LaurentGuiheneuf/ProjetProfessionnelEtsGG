@@ -32,7 +32,7 @@ let suggestionsChargees = false;
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
-  m.className = erreur ? 'erreur' : 'succes';
+  m.className = texte ? `alert ${erreur ? 'alert-danger' : 'alert-success'} mt-3` : '';
 }
 
 async function api(url, options) {

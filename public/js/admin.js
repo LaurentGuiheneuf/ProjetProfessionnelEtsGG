@@ -17,7 +17,7 @@ const prixEnTexte = (c) => (c === null || c === undefined ? '' : (c / 100).toFix
 function afficherMessage(texte, erreur = false) {
   const m = $('message');
   m.textContent = texte;
-  m.className = erreur ? 'erreur' : 'succes';
+  m.className = texte ? `alert ${erreur ? 'alert-danger' : 'alert-success'} mt-3` : '';
   if (texte) m.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
@@ -180,11 +180,11 @@ $('btn-annuler').addEventListener('click', () => {
 });
 
 // --- Tableau ---
-function creerBouton(texte, action, classe = '') {
+function creerBouton(texte, action, classe = 'btn-outline-secondary') {
   const b = document.createElement('button');
   b.type = 'button';
   b.textContent = texte;
-  if (classe) b.className = classe;
+  b.className = `btn btn-sm ${classe}`;
   b.addEventListener('click', action);
   return b;
 }
@@ -260,6 +260,8 @@ async function supprimerDefinitivement(a) {
 
 function creerLigne(a) {
   const tr = document.createElement('tr');
+  if (!a.actif) tr.className = 'table-secondary';
+  else if (a.a_verifier) tr.className = 'table-info';
 
   [
     a.a_verifier ? `${a.nom} (à vérifier)` : a.nom,
@@ -277,25 +279,29 @@ function creerLigne(a) {
     tr.appendChild(td);
   });
 
-  const actions = document.createElement('td');
+  const groupe = document.createElement('div');
+  groupe.className = 'd-flex flex-wrap gap-1';
+
   if (a.actif) {
-    actions.append(
-      creerBouton('Modifier', () => modeEdition(a)),
-      creerBouton('Dupliquer', () => dupliquer(a)),
+    groupe.append(
+      creerBouton('Modifier', () => modeEdition(a), 'btn-outline-primary'),
+      creerBouton('Dupliquer', () => dupliquer(a), 'btn-outline-secondary'),
       a.mouvements === 0
-        ? creerBouton('Supprimer', () => supprimer(a))
-        : creerBouton('Archiver', () => archiver(a, false))
+        ? creerBouton('Supprimer', () => supprimer(a), 'btn-outline-danger')
+        : creerBouton('Archiver', () => archiver(a, false), 'btn-outline-warning')
     );
   } else {
-    actions.append(creerBouton('Restaurer', () => archiver(a, true)));
+    groupe.append(creerBouton('Restaurer', () => archiver(a, true), 'btn-outline-success'));
   }
   if (a.mouvements > 0 || !a.actif) {
-    actions.append(
-      creerBouton('Supprimer définitivement', () => supprimerDefinitivement(a), 'danger')
+    groupe.append(
+      creerBouton('Supprimer définitivement', () => supprimerDefinitivement(a), 'btn-danger')
     );
   }
-  tr.appendChild(actions);
 
+  const actions = document.createElement('td');
+  actions.appendChild(groupe);
+  tr.appendChild(actions);
   return tr;
 }
 
