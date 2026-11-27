@@ -5,6 +5,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const db = require('./db');
+const retention = require('./retention');
 const crypto = require('crypto');
 
 const app = express();
@@ -303,11 +304,13 @@ app.get('/api/admin/inventaire', exigerAdmin, (req, res) => {
   const lignes = db.prepare(`
     SELECT a.code_barre, a.nom, a.couleur, a.finition, a.texture, a.fabricant,
            a.prix_centimes, a.actif, a.a_verifier,
+           c.nom AS cree_par_nom,
            COALESCE(SUM(m.quantite), 0) AS quantite,
            COUNT(m.id) AS mouvements,
            COALESCE(SUM(m.quantite), 0) * COALESCE(a.prix_centimes, 0) AS valeur_centimes
     FROM article a
     LEFT JOIN mouvement m ON m.code_barre = a.code_barre
+    LEFT JOIN utilisateur c ON c.id = a.cree_par
     WHERE a.actif = ? AND (? = 0 OR a.a_verifier = 1)
       AND a.nom LIKE ? AND a.couleur LIKE ? AND a.finition LIKE ?
       AND a.texture LIKE ? AND a.fabricant LIKE ?
@@ -379,6 +382,22 @@ app.put('/api/admin/articles/:code', exigerAdmin, (req, res) => {
 
   if (r.changes === 0) return res.status(404).json({ erreur: 'Article inconnu' });
   res.json({ ok: true });
+});
+
+// --- Admin : valider une fiche créée au scan, sans la modifier ---
+app.patch('/api/admin/articles/:code/validation', exigerAdmin, (req, res) => {
+  const r = db.prepare('UPDATE article SET a_verifier = 0 WHERE code_barre = ?')
+    .run(req.params.code);
+  if (r.changes === 0) return res.status(404).json({ erreur: 'Article inconnu' });
+  res.json({ ok: true });
+});
+
+// --- Admin : nombre de fiches à vérifier ---
+app.get('/api/admin/a-verifier', exigerAdmin, (req, res) => {
+  const { n } = db.prepare(
+    'SELECT COUNT(*) AS n FROM article WHERE a_verifier = 1 AND actif = 1'
+  ).get();
+  res.json({ n });
 });
 
 // --- Admin : supprimer un article (refusé s'il a des mouvements) ---
@@ -527,8 +546,9 @@ app.get('/api/admin/utilisateurs', exigerAdmin, (req, res) => {
     SELECT u.id, u.nom, u.role, u.actif,
            (SELECT COUNT(*) FROM mouvement m WHERE m.utilisateur_id = u.id) AS mouvements
     FROM utilisateur u
+    WHERE u.nom <> ?
     ORDER BY u.nom COLLATE NOCASE
-  `).all();
+  `).all(retention.NOM_ANONYME);
   res.json(lignes.map((u) => ({ ...u, soi: u.id === req.session.user.id })));
 });
 
@@ -563,8 +583,10 @@ app.patch('/api/admin/utilisateurs/:id', exigerAdmin, (req, res) => {
   if (id === req.session.user.id)
     return res.status(409).json({ erreur: 'Tu ne peux pas modifier ton propre rôle ou statut' });
 
-  const u = db.prepare('SELECT id FROM utilisateur WHERE id = ?').get(id);
+  const u = db.prepare('SELECT id, nom FROM utilisateur WHERE id = ?').get(id);
   if (!u) return res.status(404).json({ erreur: 'Utilisateur inconnu' });
+  if (u.nom === retention.NOM_ANONYME)
+    return res.status(403).json({ erreur: 'Compte réservé à l\u2019anonymisation' });
 
   const { role, actif } = req.body;
   if (role !== undefined) {
@@ -573,7 +595,14 @@ app.patch('/api/admin/utilisateurs/:id', exigerAdmin, (req, res) => {
   }
   if (actif !== undefined) {
     if (typeof actif !== 'boolean') return res.status(400).json({ erreur: 'Statut invalide' });
-    db.prepare('UPDATE utilisateur SET actif = ? WHERE id = ?').run(actif ? 1 : 0, id);
+    db.prepare(
+      `UPDATE utilisateur
+       SET actif = ?,
+           desactive_le = CASE WHEN ? = 1 THEN NULL
+                               WHEN actif = 0 THEN desactive_le
+                               ELSE datetime('now') END
+       WHERE id = ?`
+    ).run(actif ? 1 : 0, actif ? 1 : 0, id);
   }
   res.json({ ok: true });
 });
@@ -584,10 +613,14 @@ app.post('/api/admin/utilisateurs/:id/mot-de-passe', exigerAdmin, async (req, re
   if (!motDePasseValide(req.body.password))
     return res.status(400).json({ erreur: ERREUR_MDP });
 
+  const u = db.prepare('SELECT nom FROM utilisateur WHERE id = ?').get(id);
+  if (!u) return res.status(404).json({ erreur: 'Utilisateur inconnu' });
+  if (u.nom === retention.NOM_ANONYME)
+    return res.status(403).json({ erreur: 'Compte réservé à l\u2019anonymisation' });
+
   try {
     const hache = await bcrypt.hash(req.body.password, 12);
-    const r = db.prepare('UPDATE utilisateur SET mot_de_passe_hache = ? WHERE id = ?').run(hache, id);
-    if (r.changes === 0) return res.status(404).json({ erreur: 'Utilisateur inconnu' });
+    db.prepare('UPDATE utilisateur SET mot_de_passe_hache = ? WHERE id = ?').run(hache, id);
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -670,5 +703,5 @@ app.get('/scan.html', (req, res, next) => {
 
 // --- Fichiers publics ---
 app.use(express.static(path.join(__dirname, 'public')));
-
+retention.planifier();
 app.listen(3000, () => console.log('http://localhost:3000'));

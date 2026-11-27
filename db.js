@@ -56,6 +56,12 @@ if (!colonnesArticle.includes('prix_centimes')) {
 if (!colonnesArticle.includes('actif')) {
   db.exec('ALTER TABLE article ADD COLUMN actif INTEGER NOT NULL DEFAULT 1');
 }
+if (!colonnesUtilisateur.includes('desactive_le')) {
+  db.exec('ALTER TABLE utilisateur ADD COLUMN desactive_le TEXT');
+  // Comptes déjà désactivés : le délai d'un an court à partir d'aujourd'hui
+  db.exec("UPDATE utilisateur SET desactive_le = datetime('now') WHERE actif = 0");
+}
+
 module.exports = db;
 
 db.exec(`

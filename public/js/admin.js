@@ -276,7 +276,7 @@ function creerLigne(a) {
   else if (a.a_verifier) tr.className = 'table-info';
 
   [
-    a.a_verifier ? `${a.nom} (à vérifier)` : a.nom,
+    a.a_verifier ? `${a.nom} (à vérifier${a.cree_par_nom ? `, créé par ${a.cree_par_nom}` : ''})` : a.nom,
     a.couleur,
     a.finition,
     a.texture,
@@ -296,11 +296,12 @@ function creerLigne(a) {
 
   if (a.actif) {
     groupe.append(
-      creerBouton('Modifier', () => modeEdition(a), 'btn-outline-primary'),
-      creerBouton('Dupliquer', () => dupliquer(a), 'btn-outline-secondary'),
-      a.mouvements === 0
-        ? creerBouton('Supprimer', () => supprimer(a), 'btn-outline-danger')
-        : creerBouton('Archiver', () => archiver(a, false), 'btn-outline-warning')
+      ...(a.a_verifier ? [creerBouton('Valider', () => valider(a), 'btn-success')] : []),
+    creerBouton('Modifier', () => modeEdition(a), 'btn-outline-primary'),
+    creerBouton('Dupliquer', () => dupliquer(a), 'btn-outline-secondary'),
+    a.mouvements === 0
+      ? creerBouton('Supprimer', () => supprimer(a), 'btn-outline-danger')
+      : creerBouton('Archiver', () => archiver(a, false), 'btn-outline-warning')
     );
   } else {
     groupe.append(creerBouton('Restaurer', () => archiver(a, true), 'btn-outline-success'));
@@ -315,6 +316,27 @@ function creerLigne(a) {
   actions.appendChild(groupe);
   tr.appendChild(actions);
   return tr;
+}
+
+async function majAVerifier() {
+  try {
+    const { n } = await api('/api/admin/a-verifier');
+    $('alerte-verifier').hidden = n === 0;
+    $('nb-verifier').textContent = `${n} fiche(s) créée(s) au scan à vérifier.`;
+  } catch (_) { /* compteur facultatif */ }
+}
+
+async function valider(a) {
+  if (!confirm(`Valider la fiche « ${a.nom} » (${a.code_barre}) ?`)) return;
+  try {
+    await api('/api/admin/articles/' + encodeURIComponent(a.code_barre) + '/validation', {
+      method: 'PATCH',
+    });
+    afficherMessage('Fiche validée.');
+    charger();
+  } catch (err) {
+    afficherMessage(err.message, true);
+  }
 }
 
 async function charger() {
@@ -365,6 +387,11 @@ $('deconnexion').addEventListener('click', async () => {
 
 $('section-article').addEventListener('toggle', () => {
   if ($('section-article').open && !codeEnEdition) $('a-code').focus();
+});
+
+$('voir-verifier').addEventListener('click', () => {
+  document.querySelector('[data-filtre="statut"]').value = 'verifier';
+  charger();
 });
 
 // --- Démarrage ---
