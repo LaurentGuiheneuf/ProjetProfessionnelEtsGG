@@ -13,7 +13,7 @@ const app = express();
 const CHAMPS = ['nom', 'couleur', 'finition', 'texture', 'fabricant'];
 
 // Derrière un proxy HTTPS (hébergeur) : décommenter
-// app.set('trust proxy', 1);
+app.set('trust proxy', 1);
 
 // --- Sécurité des en-têtes ---
 app.use(helmet({
@@ -704,4 +704,9 @@ app.get('/scan.html', (req, res, next) => {
 // --- Fichiers publics ---
 app.use(express.static(path.join(__dirname, 'public')));
 retention.planifier();
-app.listen(3000, () => console.log('http://localhost:3000'));
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Serveur démarré sur le port ${PORT}`);
+});

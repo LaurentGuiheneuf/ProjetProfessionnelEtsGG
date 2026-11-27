@@ -1,3 +1,7 @@
 demarrage.txt
 start.ps1
 .session-secret
+stock.db
+stock.db-shm
+stock.db-wal
+.env
