@@ -1,43 +1,94 @@
 /* ===== Variables ===== */
+
 :root {
     --couleur1: #129768;
 }
 
 /* ===== Structure commune ===== */
+
+*{
+    box-sizing: border-box;
+}
+
+body{
+    margin:0;
+    padding:0;
+}
+
 header {
     background-color: var(--couleur1);
-    padding-top: 10px;
-    padding-bottom: 10px;
-    margin: 10px;
+    padding: 10px;
     color: white;
+    width: 100%;
 }
-h1, h2 { text-align: center; }
-main { padding: 10px; }
-img { max-width: 100%; height: auto; }
-figure { margin: 0; text-align: center; }
-[hidden] { display: none !important; }
+
+h1,
+h2 {
+    text-align: center;
+}
+
+main {
+    padding: 20px;
+}
+
+img {
+    max-width: 350px;
+    height: auto;
+}
+
+figure {
+    margin: 0;
+    text-align: center;
+}
+
+[hidden] {
+    display: none !important;
+}
 
 /* ===== Bannière ===== */
+
 #banniere img {
     display: block;
-    width: 20%;
-    min-width: 200px;
+    width: 100%;
+    max-width: 500px;
+    height: auto;
     margin: 0 auto;
+    border-radius: 10px;
 }
 
-/* ===== Navigation du bandeau ===== */
-header nav { text-align: center; }
-header nav a { color: white; }
+/* ===== Navigation ===== */
 
-/* ===== Page de connexion ===== */
+header nav {
+    text-align: center;
+    margin: 15px 0;
+}
+
+header nav a {
+    color: white;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+header nav a:hover {
+    text-decoration: underline;
+}
+
+#deconnexion {
+    display: block;
+    margin: 10px auto;
+}
+
+/* ===== Page connexion ===== */
+
 fieldset {
     text-align: center;
     width: fit-content;
     border: 3px solid black;
     border-radius: 10px;
     padding: 30px;
-    margin: 10px auto;
+    margin: 20px auto;
 }
+
 fieldset legend {
     float: none;
     width: auto;
@@ -45,33 +96,43 @@ fieldset legend {
     font-size: 1.25rem;
 }
 
-/* ===== Page de scan ===== */
+/* ===== Page scan ===== */
+
 #lecteur {
     display: block;
     width: 100%;
-    max-width: 480px;
+    max-width: 650px;
+    height: 150px;
+    object-fit: cover;
     margin: 0 auto;
     background: #000;
 }
-/* À retirer quand scan.html utilise d-flex gap-2 et btn */
-.actions { display: flex; gap: 10px; margin: 15px 0; }
-.actions button { flex: 1; padding: 14px; }
 
-/* ===== Tableaux triables (administration, historique) ===== */
-th button {
-    background: none;
-    border: 0;
-    padding: 0;
-    font-weight: bold;
-    color: inherit;
-    cursor: pointer;
+#code-manuel,
+#n-code,
+#a-code,
+#c-code {
+    width: 100%;
+    max-width: 600px;
+    padding: 0px;
+    font-size: 1rem;
 }
-th[aria-sort="ascending"] button::after { content: " ▲"; }
-th[aria-sort="descending"] button::after { content: " ▼"; }
 
-/* ===== Divers ===== */
-#valorisation { font-weight: bold; }
-button:disabled { cursor: not-allowed; }
+#f-code {
+    padding: 8px 12px;
+    background-color: #f2f2f2;
+    border-radius: 4px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+/* ===== Formulaire article ===== */
+
+#section-article {
+    max-width: 800px;
+    margin: 0 auto 40px auto;
+}
 
 #section-article > summary {
     cursor: pointer;
@@ -80,4 +141,160 @@ button:disabled { cursor: not-allowed; }
     text-align: center;
     padding: 8px 0;
 }
-#section-article[open] > summary { margin-bottom: 10px; }
+
+#section-article[open] > summary {
+    margin-bottom: 20px;
+}
+
+.formulaire-article {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.formulaire-article label {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 500px;
+    font-weight: 600;
+}
+
+.formulaire-article input {
+    margin-top: 5px;
+}
+
+#a-code,
+#a-nom,
+#a-couleur,
+#a-finition,
+#a-texture,
+#a-fabricant,
+#a-prix,
+#a-stock {
+    width: 100%;
+}
+
+#aide-code {
+    text-align: center;
+}
+
+}
+/* ===== Boutons ===== */
+
+.actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 20px;
+    width: 100%;
+}
+
+.actions button {
+    min-width: 180px;
+    padding: 12px 20px;
+}
+
+/* ===== Filtres ===== */
+
+#filtres {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+#filtres label {
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== Tableau inventaire ===== */
+
+.tableau-conteneur {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+}
+
+table th,
+table td {
+    border: 1px solid #cccccc;
+    padding: 10px;
+    text-align: left;
+}
+
+table th {
+    background-color: #f2f2f2;
+}
+
+table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+table tbody tr:hover {
+    background-color: #eef8f4;
+}
+
+/* ===== Colonnes triables ===== */
+
+th button {
+    background: none;
+    border: none;
+    padding: 0;
+    font-weight: bold;
+    color: inherit;
+    cursor: pointer;
+}
+
+th[aria-sort="ascending"] button::after {
+    content: " ▲";
+}
+
+th[aria-sort="descending"] button::after {
+    content: " ▼";
+}
+
+/* ===== Informations ===== */
+
+#compteur,
+#valorisation,
+#message {
+    text-align: center;
+}
+
+#valorisation {
+    font-weight: bold;
+    font-size: 1.1rem;
+}
+
+button:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+/* ===== Responsive mobile ===== */
+
+@media (max-width: 768px) {
+
+    .formulaire-article label {
+        max-width: 100%;
+    }
+
+    .actions {
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .actions button {
+        width: 100%;
+        max-width: 300px;
+    }
+}

@@ -161,16 +161,28 @@ $('form-article').addEventListener('submit', async (e) => {
       });
 
   try {
-    await enregistrement;
+    const resultat = await enregistrement;
+    console.log("Réponse API :", resultat);
+
     const etaitModification = Boolean(codeEnEdition);
-    afficherMessage(etaitModification ? 'Article modifié.' : 'Article ajouté.');
+
+    afficherMessage(
+        etaitModification ? 'Article modifié.' : 'Article ajouté.'
+    );
+
     modeCreation();
-    if (etaitModification) $('section-article').open = false;
+
+    if (etaitModification) {
+        $('section-article').open = false;
+    }
+
     charger();
     chargerSuggestions();
-  } catch (err) {
+
+} catch (err) {
+    console.error(err);
     afficherMessage(err.message, true);
-  }
+}
 });
 
 $('btn-annuler').addEventListener('click', () => {
@@ -306,7 +318,12 @@ function creerLigne(a) {
 }
 
 async function charger() {
-  const p = new URLSearchParams({ tri: etat.tri, ordre: etat.ordre });
+    console.log("Rechargement du tableau");
+
+    const p = new URLSearchParams({
+        tri: etat.tri,
+        ordre: etat.ordre
+    });
   filtres.forEach((i) => p.set(i.dataset.filtre, i.value.trim()));
   try {
   const lignes = await api('/api/admin/inventaire?' + p);
